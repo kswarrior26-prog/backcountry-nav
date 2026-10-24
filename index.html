@@ -121,6 +121,20 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 .rotchip{all:unset;cursor:pointer;position:fixed;z-index:1500;left:max(12px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 62px);background:var(--blaze);color:var(--blaze-ink);font:700 13px var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:9px 14px;border-radius:999px;white-space:nowrap;max-width:calc(100% - 130px);overflow:hidden;text-overflow:ellipsis}
 .hzq{border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
 .hzf{width:18px;height:18px;display:grid;place-items:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
+.views{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px;gap:2px;flex:none}
+.views button{all:unset;cursor:pointer;font:700 13px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:8px 9px;border-radius:4px}
+.views button[aria-selected="true"]{background:var(--blaze);color:var(--blaze-ink)}
+.top{z-index:1100}
+.viewpane{position:fixed;inset:0;z-index:950;background:#000}
+#globe,#polar{position:absolute;inset:0;width:100%;height:100%}
+#polar{touch-action:none;cursor:crosshair}
+.vbar{position:absolute;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 62px);display:flex;flex-wrap:wrap;gap:6px;z-index:5}
+.vbar .pill{background:var(--panel)}
+.vbar .pill.on{background:var(--ink)}
+.pinfo{position:absolute;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 104px);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:13px var(--f-data);color:var(--ink);font-variant-numeric:tabular-nums}
+body.alt .rail,body.alt .compass,body.alt .rotchip,body.alt .layerchip{display:none}
+.maplibregl-ctrl-attrib{font-size:10px}
+@media (max-width:420px){.brand{display:none}}
 .ldpop{font:13px var(--f-body)}
 .ldpop .c{font:12px var(--f-data);color:#333;margin:4px 0}
 .ldpop button{border:0;background:var(--blaze);color:var(--blaze-ink);font:700 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:5px;cursor:pointer;margin-top:4px}
@@ -135,6 +149,11 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 
 <div class="top">
   <div class="brand"><i></i><span>Backcountry</span></div>
+  <div class="views" role="tablist" aria-label="Earth view">
+    <button role="tab" data-view="map" aria-selected="true">Map</button>
+    <button role="tab" data-view="globe" aria-selected="false">Globe</button>
+    <button role="tab" data-view="polar" aria-selected="false">Polar</button>
+  </div>
   <button class="layerchip" id="layerChip" aria-label="Choose map layers"><b id="baseName">USGS Topo</b> <span id="ovNames"></span></button>
 </div>
 
@@ -254,6 +273,26 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 </div>
 
 <div class="toast" id="toast" hidden></div>
+<div class="viewpane" id="globePane" hidden>
+  <div id="globe"></div>
+  <div class="vbar">
+    <button class="pill" id="gSpin">Spin</button>
+    <button class="pill on" data-g="quakes">Earthquakes</button>
+    <button class="pill" data-g="fires">Wildfires</button>
+    <button class="pill" id="gMe">My location</button>
+  </div>
+</div>
+<div class="viewpane" id="polarPane" hidden>
+  <canvas id="polar" aria-label="Azimuthal equidistant map"></canvas>
+  <div class="vbar">
+    <button class="pill on" data-c="pole">North Pole center</button>
+    <button class="pill" data-c="me">Center on me</button>
+    <button class="pill" data-c="map">Map center</button>
+    <button class="pill" id="pZin" aria-label="Zoom in">+</button>
+    <button class="pill" id="pZout" aria-label="Zoom out">−</button>
+  </div>
+  <div class="pinfo" id="pInfo">Polar view: the round Earth unrolled around one point, the way flat-earth maps are drawn. Distances and directions from the center are true; land stretches toward the edge. Tap anywhere to measure.</div>
+</div>
 <button class="rotchip" id="rotChip" hidden>Map turned to your heading · tap for north up</button>
 
 <div class="banner" id="mapWarn" hidden role="alert">
@@ -730,8 +769,10 @@ $('mapRetry').onclick=()=>{$('mapWarn').hidden=true;triedBases.length=0;setBase(
 // iOS needs a user gesture for compass; others start right away
 if(!(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'))startCompass();
 else document.addEventListener('click',function first(e){if(!compassOn&&!e.target.closest('#compass')){startCompass()}document.removeEventListener('click',first,true)},true);
+window.BCN={map,L,getBase:()=>baseLayer,getBaseDef:()=>BASES[baseKey],getFix:()=>fix,units:()=>U[units],esc,card,toast,hav,bearing};
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
 })();
 </script>
+<script src="views.js?v=1"></script>
 </body>
 </html>
