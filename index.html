@@ -118,6 +118,7 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 .banner b{font:700 17px var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--blaze)}
 .banner p{margin:6px 0 12px;color:var(--ink);font-size:14px}
 #gpsWarn{top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 110px)}
+.rotchip{all:unset;cursor:pointer;position:fixed;z-index:1500;left:max(12px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 62px);background:var(--blaze);color:var(--blaze-ink);font:700 13px var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:9px 14px;border-radius:999px;white-space:nowrap;max-width:calc(100% - 130px);overflow:hidden;text-overflow:ellipsis}
 .ldpop{font:13px var(--f-body)}
 .ldpop .c{font:12px var(--f-data);color:#333;margin:4px 0}
 .ldpop button{border:0;background:var(--blaze);color:var(--blaze-ink);font:700 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:5px;cursor:pointer;margin-top:4px}
@@ -248,6 +249,7 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 </div>
 
 <div class="toast" id="toast" hidden></div>
+<button class="rotchip" id="rotChip" hidden>Map turned to your heading · tap for north up</button>
 
 <div class="banner" id="mapWarn" hidden role="alert">
   <b>Maps can't load here</b>
@@ -477,7 +479,7 @@ $('bRec').onclick=()=>{startGPS();recording=!recording;$('bRec').classList.toggl
   if(!recording){store.set('track',track);store.set('trip',tripM)} toast(recording?'Recording track':'Track paused');updateHud()};
 
 // ---------- compass ----------
-let compassHdg=null, compassOn=false, rotateMap=store.get('rotate',false);
+let compassHdg=null, compassOn=false, rotateMap=false;store.set('rotate',false);
 (function ticks(){let s='';for(let i=0;i<360;i+=15){const big=i%45===0,r1=big?37:40,a=i*Math.PI/180;s+=`<line x1="${50+r1*Math.sin(a)}" y1="${50-r1*Math.cos(a)}" x2="${50+44*Math.sin(a)}" y2="${50-44*Math.cos(a)}" stroke="${big?'#e9e6d6':'#a3a58e'}" stroke-width="${big?1.6:1}"/>`}$('ticks').innerHTML=s})();
 function declinationNote(){return ''}
 let compassSrc='', lastOrientT=0, compassHint=false;
@@ -526,12 +528,13 @@ function startCompass(){
   else{$('hdgLbl').textContent='NO SENSOR';toast('This browser has no compass access. The arrow will use your GPS direction while you move.',5000)}
 }
 // Map rotation: rotate the map pane container (Leaflet has no native rotation)
-function applyRotate(){const el=$('map');if(rotateMap&&compassHdg!=null){const s=Math.hypot(innerWidth,innerHeight)/Math.min(innerWidth,innerHeight);el.style.transform=`rotate(${-compassHdg}deg) scale(${s.toFixed(2)})`}else el.style.transform=''}
+function applyRotate(){$('rotChip').hidden=!rotateMap;const el=$('map');if(rotateMap&&compassHdg!=null){const s=Math.hypot(innerWidth,innerHeight)/Math.min(innerWidth,innerHeight);el.style.transform=`rotate(${-compassHdg}deg) scale(${s.toFixed(2)})`}else el.style.transform=''}
 $('compass').onclick=()=>{
   if(!compassOn||compassHdg==null&&compassSrc===''){startCompass();toast('Compass on. Hold the phone flat, away from metal and magnets.',3200);return}
-  rotateMap=!rotateMap;store.set('rotate',rotateMap);applyRotate();$('optRotate').classList.toggle('on',rotateMap);toast(rotateMap?'Map turns with your heading. Tap compass again for north up.':'North up')};
+  rotateMap=!rotateMap;applyRotate();$('optRotate').classList.toggle('on',rotateMap);toast(rotateMap?'Map turns with your heading. Tap compass again for north up.':'North up')};
 $('optRotate').classList.toggle('on',rotateMap);
-$('optRotate').onclick=()=>{startCompass();rotateMap=!rotateMap;store.set('rotate',rotateMap);$('optRotate').classList.toggle('on',rotateMap);applyRotate()};
+$('rotChip').onclick=()=>{rotateMap=false;applyRotate();$('optRotate').classList.remove('on');toast('North up')};
+$('optRotate').onclick=()=>{startCompass();rotateMap=!rotateMap;$('optRotate').classList.toggle('on',rotateMap);applyRotate()};
 
 // wake lock
 let wake=null;
