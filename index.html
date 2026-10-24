@@ -186,6 +186,18 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 .sr small{display:block;color:var(--dim);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shelp{margin-top:12px;line-height:1.7}.shelp code{font:12px var(--f-data);background:var(--ground);border:1px solid var(--line);border-radius:4px;padding:1px 5px;white-space:nowrap}
 .srmark{width:22px;height:22px;border-radius:50%;background:var(--blaze);border:3px solid #fff;box-shadow:0 0 0 6px color-mix(in srgb,var(--blaze) 30%,transparent),0 2px 6px rgba(0,0,0,.5)}
+.dd{border:1px solid var(--line);border-radius:10px;margin-top:10px;background:var(--ground);overflow:hidden}
+.dd>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 14px;min-height:48px}
+.dd>summary::-webkit-details-marker{display:none}
+.dd>summary::after{content:"";flex:none;width:9px;height:9px;border-right:2px solid var(--dim);border-bottom:2px solid var(--dim);transform:rotate(45deg) translateY(-3px);transition:transform .15s}
+.dd[open]>summary::after{transform:rotate(-135deg) translateY(-1px)}
+.dd>summary:focus-visible{outline:2px solid var(--sky);outline-offset:-2px}
+.ddt{font:700 15px var(--f-display);letter-spacing:.1em;text-transform:uppercase;flex:none}
+.dds{flex:1;min-width:0;text-align:right;color:var(--blaze);font:600 13px var(--f-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dds.off{color:var(--dim);font-weight:500}
+.ddb{padding:0 12px 14px;border-top:1px solid var(--line)}
+.ddb h4{font:600 12px/1 var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:14px 2px 8px}
+@media (prefers-reduced-motion:reduce){.dd>summary::after{transition:none}}
 .ldpop{font:13px var(--f-body)}
 .ldpop .c{font:12px var(--f-data);color:#333;margin:4px 0}
 .ldpop button{border:0;background:var(--blaze);color:var(--blaze-ink);font:700 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:5px;cursor:pointer;margin-top:4px}
@@ -253,15 +265,25 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
   <h2>Map layers <button class="x" data-close>Close</button></h2>
   <div class="row" style="margin-bottom:4px"><button class="cta" id="fx4" style="flex:1">4x4 mode · show vehicle trails</button></div>
   <p class="note">Turns on Forest Service and BLM routes open to vehicles over an off-road topo. Check the official MVUM for seasonal closures before you go.</p>
-  <h3>Base map</h3>
-  <div class="opts" id="baseOpts"></div>
-  <h3>Hazards · live</h3>
-  <div class="row" style="margin-bottom:8px"><button class="pill" id="hzAll">Show all hazards</button><span class="note" id="hzStat"></span></div>
-  <div class="opts" id="hzOpts"></div>
-  <h3>Overlays</h3>
-  <div class="opts" id="ovOpts"></div>
-  <h3>Overlay opacity</h3>
-  <input type="range" id="ovOpacity" min="0.2" max="1" step="0.05" value="0.65" aria-label="Overlay opacity">
+  <details class="dd" data-dd="base" open>
+    <summary><span class="ddt">Base map</span><span class="dds" id="sumBase"></span></summary>
+    <div class="ddb" id="baseOpts"></div>
+  </details>
+  <details class="dd" data-dd="hz">
+    <summary><span class="ddt">Hazards · live</span><span class="dds" id="sumHz"></span></summary>
+    <div class="ddb">
+      <div class="row" style="margin-bottom:8px"><button class="pill" id="hzAll">Show all hazards</button><span class="note" id="hzStat"></span></div>
+      <div class="opts" id="hzOpts"></div>
+    </div>
+  </details>
+  <details class="dd" data-dd="ov">
+    <summary><span class="ddt">Overlays</span><span class="dds" id="sumOv"></span></summary>
+    <div class="ddb">
+      <div id="ovOpts"></div>
+      <h4>Overlay opacity</h4>
+      <input type="range" id="ovOpacity" min="0.2" max="1" step="0.05" value="0.65" aria-label="Overlay opacity">
+    </div>
+  </details>
   <p class="note">Aeronautical charts are FAA digital VFR/IFR charts. They're for situational awareness, not flight planning.</p>
 </div>
 
@@ -365,10 +387,18 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 </div>
 <div class="sheet" id="sPolar" hidden role="dialog" aria-label="Polar view layers">
   <h2>Polar layers <button class="x" data-close>Close</button></h2>
-  <h3>Base</h3>
-  <div class="opts" id="pBase"></div>
-  <h3>Overlays &amp; hazards</h3>
-  <div class="opts" id="pOv"></div>
+  <details class="dd" data-dd="pbase" open>
+    <summary><span class="ddt">Base</span><span class="dds" id="sumPBase"></span></summary>
+    <div class="ddb"><div class="opts" id="pBase"></div></div>
+  </details>
+  <details class="dd" data-dd="phz">
+    <summary><span class="ddt">Hazards · live</span><span class="dds" id="sumPHz"></span></summary>
+    <div class="ddb"><div class="opts" id="pHz"></div></div>
+  </details>
+  <details class="dd" data-dd="pov">
+    <summary><span class="ddt">Overlays</span><span class="dds" id="sumPOv"></span></summary>
+    <div class="ddb"><div class="opts" id="pOv"></div></div>
+  </details>
   <p class="note">The polar view redraws whole-Earth imagery around its center, so detail is world-scale. Zoom in on the Map or Globe for local detail.</p>
 </div>
 <div class="viewpane" id="globePane" hidden>
@@ -543,17 +573,31 @@ function toggleOv(k,force){
   ovOn=Object.keys(ovLayers); store.set('ov',ovOn.filter(x=>x!=='radar')); renderLayerUI();document.dispatchEvent(new Event('bcn:layers'));
   $('wxRadar').classList.toggle('on',!!ovLayers.radar);
 }
+const BASE_GROUPS=[['Topographic',['usgsTopo','openTopo','usgsRelief']],['Satellite & aerial',['sat','satLabels','usgsImgTopo','usgsImg','nasa']],['Aeronautical (FAA)',['faaSec','faaTac','faaIfr']],['Street',['osm']]];
+const OV_GROUPS=[['4x4 & trails',['mvum','blm','trails']],['Terrain & water',['geology','relief','hydro']],['Labels',['labels','roads']],['Weather & aviation',['radar','sectional']]];
+function grp(groups,dict,isOn,attr){const seen=new Set();let h=groups.map(([t,ks])=>{const items=ks.filter(k=>dict[k]);items.forEach(k=>seen.add(k));
+    return items.length?`<h4>${t}</h4><div class="opts">${items.map(k=>`<button class="opt${isOn(k)?' on':''}" ${attr}="${k}"><b>${dict[k].name}</b><small>${dict[k].d}</small></button>`).join('')}</div>`:''}).join('');
+  const rest=Object.keys(dict).filter(k=>!seen.has(k));if(rest.length)h+=`<h4>More</h4><div class="opts">${rest.map(k=>`<button class="opt${isOn(k)?' on':''}" ${attr}="${k}"><b>${dict[k].name}</b><small>${dict[k].d}</small></button>`).join('')}</div>`;return h}
+function renderGrouped(){
+  $('baseOpts').innerHTML=grp(BASE_GROUPS,BASES,k=>k===baseKey,'data-b');
+  $('ovOpts').innerHTML=grp(OV_GROUPS,OVERLAYS,k=>!!ovLayers[k],'data-o');
+  const sum=(el,arr)=>{el.textContent=arr.length?arr.join(', '):'None on';el.classList.toggle('off',!arr.length)};
+  $('sumBase').textContent=BASES[baseKey].name;
+  sum($('sumHz'),Object.keys(HZ).filter(k=>ovLayers[k]).map(k=>HZ[k].name));
+  sum($('sumOv'),Object.keys(OVERLAYS).filter(k=>ovLayers[k]).map(k=>OVERLAYS[k].name));
+}
+// remember which dropdowns are open
+document.querySelectorAll('details.dd').forEach(d=>{const k='dd.'+d.dataset.dd,v=store.get(k,null);if(v!=null)d.open=v;d.addEventListener('toggle',()=>store.set(k,d.open))});
 function renderLayerUI(){
   $('baseName').textContent=BASES[baseKey].name;
   const ovs=Object.keys(ovLayers).map(k=>(OVERLAYS[k]||HZ[k]).name);
   if(loop.layer) ovs.push('Radar loop');
   $('ovNames').textContent=ovs.length?'+ '+ovs.join(', '):'';
-  $('baseOpts').innerHTML=Object.entries(BASES).map(([k,b])=>`<button class="opt${k===baseKey?' on':''}" data-b="${k}"><b>${b.name}</b><small>${b.d}</small></button>`).join('');
+  renderGrouped();
   const x4=!!(ovLayers.mvum&&ovLayers.blm);$('b4x4').classList.toggle('on',x4);
   $('fx4').textContent=x4?'4x4 mode on · tap to turn off':'4x4 mode · show vehicle trails';
   $('hzOpts').innerHTML=Object.entries(HZ).map(([k,b])=>`<button class="opt${ovLayers[k]?' on':''}" data-o="${k}"><b>${b.name}</b><small>${b.d}</small></button>`).join('');
   $('hzAll').classList.toggle('on',Object.keys(HZ).every(k=>ovLayers[k]));
-  $('ovOpts').innerHTML=Object.entries(OVERLAYS).map(([k,b])=>`<button class="opt${ovLayers[k]?' on':''}" data-o="${k}"><b>${b.name}</b><small>${b.d}</small></button>`).join('');
 }
 $('baseOpts').addEventListener('click',e=>{const b=e.target.closest('[data-b]');if(b)setBase(b.dataset.b)});
 $('fx4').addEventListener('click',fourByFour);$('b4x4').addEventListener('click',fourByFour);
@@ -969,6 +1013,6 @@ window.BCN={map,L,BASES,OVERLAYS,HZ,FULL,ovLayers:()=>ovLayers,ovOpacity:()=>ovO
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
 })();
 </script>
-<script src="views.js?v=5"></script>
+<script src="views.js?v=6"></script>
 </body>
 </html>

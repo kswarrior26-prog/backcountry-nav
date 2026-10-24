@@ -169,10 +169,18 @@
 
   function renderPolarSheet() {
     $('pBase').innerHTML = Object.entries(PBASES).map(([k, b]) => `<button class="opt${k === pBase ? ' on' : ''}" data-pb="${k}"><b>${b.name}</b><small>${b.d}</small></button>`).join('');
-    $('pOv').innerHTML = Object.entries(POV).map(([k, b]) => `<button class="opt${pOn[k] ? ' on' : ''}" data-po="${k}"><b>${b.name}</b><small>${b.d}</small></button>`).join('');
+    const HZK = ['quakes', 'fires', 'warnings'], opt = k => `<button class="opt${pOn[k] ? ' on' : ''}" data-po="${k}"><b>${POV[k].name}</b><small>${POV[k].d}</small></button>`;
+    $('pOv').innerHTML = Object.keys(POV).filter(k => !HZK.includes(k)).map(opt).join('');
+    $('pHz').innerHTML = HZK.map(opt).join('');
+    const sum = (id, arr) => { const el = $(id); el.textContent = arr.length ? arr.join(', ') : 'None on'; el.classList.toggle('off', !arr.length); };
+    $('sumPBase').textContent = PBASES[pBase].name;
+    sum('sumPHz', HZK.filter(k => pOn[k]).map(k => POV[k].name));
+    sum('sumPOv', Object.keys(POV).filter(k => !HZK.includes(k) && pOn[k]).map(k => POV[k].name));
   }
   $('pBase').addEventListener('click', e => { const b = e.target.closest('[data-pb]'); if (!b) return; pBase = b.dataset.pb; store.set('pBase', pBase); renderPolarSheet(); updateChip(); drawPolar(lastMark); });
-  $('pOv').addEventListener('click', e => { const b = e.target.closest('[data-po]'); if (!b) return; const k = b.dataset.po; pOn[k] = !pOn[k]; store.set('pOv', pOn); renderPolarSheet(); updateChip(); loadPolarData(); drawPolar(lastMark); });
+  $('pHz').addEventListener('click', e => polarToggle(e));
+  $('pOv').addEventListener('click', e => polarToggle(e));
+  function polarToggle(e) { const b = e.target.closest('[data-po]'); if (!b) return; const k = b.dataset.po; pOn[k] = !pOn[k]; store.set('pOv', pOn); renderPolarSheet(); updateChip(); loadPolarData(); drawPolar(lastMark); }
   $('pLayers').addEventListener('click', () => { renderPolarSheet(); B.openSheet('sPolar'); });
   function updateChip() { if (view !== 'polar') return; $('baseName').textContent = PBASES[pBase].name; const on = ['quakes', 'fires', 'warnings'].filter(k => pOn[k]).map(k => POV[k].name); $('ovNames').textContent = on.length ? '+ ' + on.join(', ') : ''; }
   document.addEventListener('bcn:layers', () => { if (view === 'polar') updateChip(); });
