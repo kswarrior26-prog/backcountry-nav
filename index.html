@@ -132,7 +132,7 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 .vbar .pill{background:var(--panel)}
 .vbar .pill.on{background:var(--ink)}
 .pinfo{position:absolute;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 104px);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:13px var(--f-data);color:var(--ink);font-variant-numeric:tabular-nums}
-body.alt .rail,body.alt .compass,body.alt .rotchip,body.alt .layerchip{display:none}
+body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 .maplibregl-ctrl-attrib{font-size:10px}
 @media (max-width:420px){.brand{display:none}}
 .ldpop{font:13px var(--f-body)}
@@ -273,18 +273,26 @@ body.alt .rail,body.alt .compass,body.alt .rotchip,body.alt .layerchip{display:n
 </div>
 
 <div class="toast" id="toast" hidden></div>
+<div class="sheet" id="sPolar" hidden role="dialog" aria-label="Polar view layers">
+  <h2>Polar layers <button class="x" data-close>Close</button></h2>
+  <h3>Base</h3>
+  <div class="opts" id="pBase"></div>
+  <h3>Overlays &amp; hazards</h3>
+  <div class="opts" id="pOv"></div>
+  <p class="note">The polar view redraws whole-Earth imagery around its center, so detail is world-scale. Zoom in on the Map or Globe for local detail.</p>
+</div>
 <div class="viewpane" id="globePane" hidden>
   <div id="globe"></div>
   <div class="vbar">
+    <button class="pill" id="gLayers">Layers</button>
     <button class="pill" id="gSpin">Spin</button>
-    <button class="pill on" data-g="quakes">Earthquakes</button>
-    <button class="pill" data-g="fires">Wildfires</button>
     <button class="pill" id="gMe">My location</button>
   </div>
 </div>
 <div class="viewpane" id="polarPane" hidden>
   <canvas id="polar" aria-label="Azimuthal equidistant map"></canvas>
   <div class="vbar">
+    <button class="pill" id="pLayers">Layers</button>
     <button class="pill on" data-c="pole">North Pole center</button>
     <button class="pill" data-c="me">Center on me</button>
     <button class="pill" data-c="map">Map center</button>
@@ -433,7 +441,7 @@ map.on('moveend',()=>store.set('view',{c:[map.getCenter().lat,map.getCenter().ln
 let baseKey=store.get('base','usgsTopo'); if(!BASES[baseKey]) baseKey='usgsTopo';
 let baseLayer=null; const ovLayers={}; let ovOn=store.get('ov',[]); let ovOpacity=store.get('ovOp',0.65);
 function setBase(k){ if(baseLayer) map.removeLayer(baseLayer); baseKey=k; baseLayer=watchTiles(BASES[k].l(),true).addTo(map); baseLayer.bringToBack(); store.set('base',k);
-  if(BASES[k].labels){toggleOv('labels',true);toggleOv('roads',true)} renderLayerUI() }
+  if(BASES[k].labels){toggleOv('labels',true);toggleOv('roads',true)} renderLayerUI(); document.dispatchEvent(new Event('bcn:layers')); }
 const FULL=['mvum','blm','labels','roads'];
 function fourByFour(){const on=!(ovLayers.mvum&&ovLayers.blm);
   if(on){if(!['openTopo','usgsTopo','usgsImgTopo'].includes(baseKey))setBase('openTopo');toggleOv('mvum',true);toggleOv('blm',true);if(map.getZoom()<11)map.setZoom(11);toast('4x4 mode: Forest Service and BLM vehicle routes on',3000)}
@@ -444,7 +452,7 @@ function toggleOv(k,force){
   if(on && !ovLayers[k]){ const ly=def.l(); if(ly.setOpacity&&!ly._hzTile&&!HZ[k])ly.setOpacity(k==='radar'?0.75:FULL.includes(k)?1:ovOpacity); ovLayers[k]=ly.addTo(map);
     if((k==='mvum'||k==='blm')&&map.getZoom()<8&&force==null)toast('Zoom in closer to see vehicle routes',3000) }
   if(!on && ovLayers[k]){ map.removeLayer(ovLayers[k]); delete ovLayers[k] }
-  ovOn=Object.keys(ovLayers); store.set('ov',ovOn.filter(x=>x!=='radar')); renderLayerUI();
+  ovOn=Object.keys(ovLayers); store.set('ov',ovOn.filter(x=>x!=='radar')); renderLayerUI();document.dispatchEvent(new Event('bcn:layers'));
   $('wxRadar').classList.toggle('on',!!ovLayers.radar);
 }
 function renderLayerUI(){
@@ -465,12 +473,12 @@ $('ovOpts').addEventListener('click',e=>{const b=e.target.closest('[data-o]');if
 $('hzOpts').addEventListener('click',e=>{const b=e.target.closest('[data-o]');if(b){toggleOv(b.dataset.o);if(ovLayers[b.dataset.o])toast(HZ[b.dataset.o].name+' on. Tap a shape for details.')}});
 $('hzAll').addEventListener('click',()=>{const all=Object.keys(HZ).every(k=>ovLayers[k]);Object.keys(HZ).forEach(k=>toggleOv(k,!all));if(!all){if(map.getZoom()>6)map.setZoom(5);toast('All live hazards on. Zoomed out to show the region.',3000)}});
 $('ovOpacity').value=ovOpacity;
-$('ovOpacity').addEventListener('input',e=>{ovOpacity=+e.target.value;store.set('ovOp',ovOpacity);Object.entries(ovLayers).forEach(([k,l])=>{if(k!=='radar'&&!HZ[k]&&!FULL.includes(k)&&l.setOpacity)l.setOpacity(ovOpacity)})});
+$('ovOpacity').addEventListener('input',e=>{ovOpacity=+e.target.value;store.set('ovOp',ovOpacity);document.dispatchEvent(new Event('bcn:layers'));Object.entries(ovLayers).forEach(([k,l])=>{if(k!=='radar'&&!HZ[k]&&!FULL.includes(k)&&l.setOpacity)l.setOpacity(ovOpacity)})});
 
 // sheets
 function openSheet(id){document.querySelectorAll('.sheet').forEach(s=>s.hidden=s.id!==id)}
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').hidden=true);
-$('layerChip').onclick=()=>openSheet('sLayers');
+$('layerChip').onclick=()=>{if(document.body.dataset.view==='polar')openSheet('sPolar');else openSheet('sLayers')};
 $('bMenu').onclick=()=>{renderWpts();renderTrk();openSheet('sMenu')};
 $('bWx').onclick=()=>{openSheet('sWx');loadForecast()};
 map.on('click',()=>document.querySelectorAll('.sheet').forEach(s=>s.hidden=true));
@@ -769,10 +777,11 @@ $('mapRetry').onclick=()=>{$('mapWarn').hidden=true;triedBases.length=0;setBase(
 // iOS needs a user gesture for compass; others start right away
 if(!(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'))startCompass();
 else document.addEventListener('click',function first(e){if(!compassOn&&!e.target.closest('#compass')){startCompass()}document.removeEventListener('click',first,true)},true);
-window.BCN={map,L,getBase:()=>baseLayer,getBaseDef:()=>BASES[baseKey],getFix:()=>fix,units:()=>U[units],esc,card,toast,hav,bearing};
+document.addEventListener('bcn:chip',renderLayerUI);
+window.BCN={map,L,BASES,OVERLAYS,HZ,FULL,ovLayers:()=>ovLayers,ovOpacity:()=>ovOpacity,isExport:l=>l instanceof ArcExport,toggleOv,openSheet,getBaseKey:()=>baseKey,getBase:()=>baseLayer,getBaseDef:()=>BASES[baseKey],getFix:()=>fix,units:()=>U[units],esc,card,toast,hav,bearing};
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
 })();
 </script>
-<script src="views.js?v=1"></script>
+<script src="views.js?v=2"></script>
 </body>
 </html>
