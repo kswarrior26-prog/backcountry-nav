@@ -420,6 +420,7 @@ function onPos(p){
     if((spd==null||isNaN(spd))&&dt>0)spd=d/dt;
     if((crs==null||isNaN(crs))&&d>3)crs=bearing(lastPos.ll,ll);}
   if(crs!=null&&!isNaN(crs)&&(spd||0)>0.5)lastCourse=crs;
+  gpsHeading(lastCourse,spd);
   fix={ll,acc:c.accuracy,alt:c.altitude,altAcc:c.altitudeAccuracy,spd:spd,crs:lastCourse,t:p.timestamp};
   lastPos={ll,t:p.timestamp};
   if(!map.hasLayer(meMarker)){meMarker.addTo(map);accCircle.addTo(map)}
@@ -479,31 +480,56 @@ $('bRec').onclick=()=>{startGPS();recording=!recording;$('bRec').classList.toggl
 let compassHdg=null, compassOn=false, rotateMap=store.get('rotate',false);
 (function ticks(){let s='';for(let i=0;i<360;i+=15){const big=i%45===0,r1=big?37:40,a=i*Math.PI/180;s+=`<line x1="${50+r1*Math.sin(a)}" y1="${50-r1*Math.cos(a)}" x2="${50+44*Math.sin(a)}" y2="${50-44*Math.cos(a)}" stroke="${big?'#e9e6d6':'#a3a58e'}" stroke-width="${big?1.6:1}"/>`}$('ticks').innerHTML=s})();
 function declinationNote(){return ''}
-function onOrient(e){
-  let h=null;
-  if(e.webkitCompassHeading!=null)h=e.webkitCompassHeading;
-  else if(e.absolute&&e.alpha!=null)h=360-e.alpha;
-  if(h==null)return;
-  const so=(screen.orientation&&screen.orientation.angle)||window.orientation||0; h=(h+so+360)%360;
-  compassHdg=compassHdg==null?h:smooth(compassHdg,h);
+let compassSrc='', lastOrientT=0, compassHint=false;
+function setHeading(h,src){
+  if(h==null||isNaN(h))return;
+  const so=src==='gps'?0:((screen.orientation&&screen.orientation.angle)||window.orientation||0);
+  h=((h+so)%360+360)%360;
+  compassHdg=compassHdg==null||src!==compassSrc?h:smooth(compassHdg,h); compassSrc=src;
   $('rose').style.transform=`rotate(${-compassHdg}deg)`;
-  $('hdgLbl').textContent=String(Math.round(compassHdg)%360).padStart(3,'0')+'° '+card(compassHdg);
+  $('hdgLbl').textContent=String(Math.round(compassHdg)%360).padStart(3,'0')+'° '+card(compassHdg)+(src==='gps'?' GPS':'');
   const r=document.getElementById('meRot');if(r){r.style.transform=`rotate(${compassHdg}deg)`;r.style.opacity=1}
   if(rotateMap)applyRotate();
 }
+function onOrient(e){
+  let h=null;
+  if(typeof e.webkitCompassHeading==='number'&&e.webkitCompassHeading>=0){h=e.webkitCompassHeading;   // iPhone/iPad
+    if(e.webkitCompassAccuracy>25&&!compassHint){compassHint=true;toast('Compass needs calibrating: move the phone in a figure 8',4000)}}
+  else if(e.alpha!=null&&(e.absolute||e.type==='deviceorientationabsolute'))h=360-e.alpha;               // Android
+  if(h==null)return;
+  if(e.type==='deviceorientation'&&compassSrc==='abs'&&Date.now()-lastOrientT<500)return; // prefer the absolute event
+  lastOrientT=Date.now(); setHeading(h,e.type==='deviceorientationabsolute'?'abs':'dev');
+}
+// GPS course as a fallback heading while moving (no compass sensor, or sensor blocked)
+function gpsHeading(crs,spd){if(crs!=null&&(spd||0)>1&&Date.now()-lastOrientT>3000)setHeading(crs,'gps')}
 function smooth(a,b){let d=((b-a+540)%360)-180;return (a+d*0.25+360)%360}
 function card(h){return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(h/22.5)%16]}
+function compassFailed(msg){if(compassHdg==null){$('hdgLbl').textContent='NO SENSOR';toast(msg,5000)}}
+function listen(){
+  compassOn=true;$('hdgLbl').textContent='…';
+  if('ondeviceorientationabsolute' in window)window.addEventListener('deviceorientationabsolute',onOrient,true);
+  window.addEventListener('deviceorientation',onOrient,true);
+  // Chrome's sensor API as a backup source
+  if('AbsoluteOrientationSensor' in window){try{const s=new AbsoluteOrientationSensor({frequency:20});
+    s.addEventListener('reading',()=>{if(Date.now()-lastOrientT<500)return;const[x,y,z,w]=s.quaternion;
+      const yaw=Math.atan2(2*(w*z+x*y),1-2*(y*y+z*z))*180/Math.PI;lastOrientT=Date.now();setHeading((360-yaw)%360,'abs')});
+    s.addEventListener('error',()=>{});s.start()}catch(e){}}
+  setTimeout(()=>compassFailed('No compass reading. This phone or browser may not have a compass sensor. The arrow will use your GPS direction while you move.'),4000);
+}
 function startCompass(){
-  if(compassOn)return true;
-  const go=()=>{compassOn=true;window.addEventListener('deviceorientationabsolute',onOrient,true);window.addEventListener('deviceorientation',onOrient,true);
-    setTimeout(()=>{if(compassHdg==null)$('hdgLbl').textContent='NO SENSOR'},3000)};
-  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
-    DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')go();else toast('Compass permission denied')}).catch(()=>toast('Compass needs a tap to enable'));
-  } else if('DeviceOrientationEvent' in window) go(); else $('hdgLbl').textContent='NO SENSOR';
+  if(!window.isSecureContext){toast('The compass needs the https link',4000);return}
+  const D=window.DeviceOrientationEvent;
+  if(D&&typeof D.requestPermission==='function'){           // iOS 13+: must be asked from a tap
+    D.requestPermission().then(s=>{if(s==='granted')listen();else{$('hdgLbl').textContent='BLOCKED';toast('Compass access was denied. Close Safari completely, reopen the app and tap the compass, then tap Allow.',6000)}})
+     .catch(()=>{$('hdgLbl').textContent='TAP';toast('Tap the compass to turn it on',3000)});
+  } else if(D||'AbsoluteOrientationSensor' in window){listen()}
+  else{$('hdgLbl').textContent='NO SENSOR';toast('This browser has no compass access. The arrow will use your GPS direction while you move.',5000)}
 }
 // Map rotation: rotate the map pane container (Leaflet has no native rotation)
 function applyRotate(){const el=$('map');if(rotateMap&&compassHdg!=null){const s=Math.hypot(innerWidth,innerHeight)/Math.min(innerWidth,innerHeight);el.style.transform=`rotate(${-compassHdg}deg) scale(${s.toFixed(2)})`}else el.style.transform=''}
-$('compass').onclick=()=>{if(!compassOn){startCompass();toast('Compass on. Hold the phone flat and away from metal.',3200)}else{rotateMap=!rotateMap;store.set('rotate',rotateMap);applyRotate();$('optRotate').classList.toggle('on',rotateMap);toast(rotateMap?'Map follows heading':'North up')}};
+$('compass').onclick=()=>{
+  if(!compassOn||compassHdg==null&&compassSrc===''){startCompass();toast('Compass on. Hold the phone flat, away from metal and magnets.',3200);return}
+  rotateMap=!rotateMap;store.set('rotate',rotateMap);applyRotate();$('optRotate').classList.toggle('on',rotateMap);toast(rotateMap?'Map turns with your heading. Tap compass again for north up.':'North up')};
 $('optRotate').classList.toggle('on',rotateMap);
 $('optRotate').onclick=()=>{startCompass();rotateMap=!rotateMap;store.set('rotate',rotateMap);$('optRotate').classList.toggle('on',rotateMap);applyRotate()};
 
@@ -644,6 +670,7 @@ $('mapHide').onclick=()=>$('mapWarn').hidden=true;
 $('mapRetry').onclick=()=>{$('mapWarn').hidden=true;triedBases.length=0;setBase(baseKey);setTimeout(()=>{if(tileStat.ok===0)$('mapWarn').hidden=false},8000)};
 // iOS needs a user gesture for compass; others start right away
 if(!(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'))startCompass();
+else document.addEventListener('click',function first(e){if(!compassOn&&!e.target.closest('#compass')){startCompass()}document.removeEventListener('click',first,true)},true);
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
 })();
 </script>
