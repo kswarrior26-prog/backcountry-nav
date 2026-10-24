@@ -135,6 +135,12 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 .maplibregl-ctrl-attrib{font-size:10px}
 @media (max-width:420px){.brand{display:none}}
+.zoombar{position:fixed;z-index:1200;left:max(12px,env(safe-area-inset-left,0px));top:50%;transform:translateY(-50%);display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.zoombar button{all:unset;cursor:pointer;width:46px;height:46px;display:grid;place-items:center;font:600 26px/1 var(--f-data);color:var(--ink);border-bottom:1px solid var(--line)}
+.zoombar button:last-child{border-bottom:0}
+.zoombar button:active{background:var(--blaze);color:var(--blaze-ink)}
+.zoombar button:focus-visible{outline:2px solid var(--sky);outline-offset:-2px}
+.zoombar svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
 .ldpop{font:13px var(--f-body)}
 .ldpop .c{font:12px var(--f-data);color:#333;margin:4px 0}
 .ldpop button{border:0;background:var(--blaze);color:var(--blaze-ink);font:700 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:5px;cursor:pointer;margin-top:4px}
@@ -273,6 +279,11 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 </div>
 
 <div class="toast" id="toast" hidden></div>
+<div class="zoombar" role="group" aria-label="Zoom">
+  <button id="zIn" aria-label="Zoom in">+</button>
+  <button id="zOut" aria-label="Zoom out">−</button>
+  <button id="zFit" aria-label="Zoom out to the whole view" class="fit"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</div>
 <div class="sheet" id="sPolar" hidden role="dialog" aria-label="Polar view layers">
   <h2>Polar layers <button class="x" data-close>Close</button></h2>
   <h3>Base</h3>
@@ -296,8 +307,6 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
     <button class="pill on" data-c="pole">North Pole center</button>
     <button class="pill" data-c="me">Center on me</button>
     <button class="pill" data-c="map">Map center</button>
-    <button class="pill" id="pZin" aria-label="Zoom in">+</button>
-    <button class="pill" id="pZout" aria-label="Zoom out">−</button>
   </div>
   <div class="pinfo" id="pInfo">Polar view: the round Earth unrolled around one point, the way flat-earth maps are drawn. Distances and directions from the center are true; land stretches toward the edge. Tap anywhere to measure.</div>
 </div>
@@ -778,10 +787,14 @@ $('mapRetry').onclick=()=>{$('mapWarn').hidden=true;triedBases.length=0;setBase(
 if(!(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'))startCompass();
 else document.addEventListener('click',function first(e){if(!compassOn&&!e.target.closest('#compass')){startCompass()}document.removeEventListener('click',first,true)},true);
 document.addEventListener('bcn:chip',renderLayerUI);
+function zoomBtn(dir){if(window.BCN_zoom&&window.BCN_zoom(dir))return;
+  if(dir>0)map.zoomIn();else if(dir<0)map.zoomOut();
+  else{const ll=fix?fix.ll:null;if(ll)map.setView(ll,14);else map.setZoom(5);follow=!!ll;$('bLocate').classList.toggle('on',follow)}}
+$('zIn').onclick=()=>zoomBtn(1);$('zOut').onclick=()=>zoomBtn(-1);$('zFit').onclick=()=>zoomBtn(0);
 window.BCN={map,L,BASES,OVERLAYS,HZ,FULL,ovLayers:()=>ovLayers,ovOpacity:()=>ovOpacity,isExport:l=>l instanceof ArcExport,toggleOv,openSheet,getBaseKey:()=>baseKey,getBase:()=>baseLayer,getBaseDef:()=>BASES[baseKey],getFix:()=>fix,units:()=>U[units],esc,card,toast,hav,bearing};
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
 })();
 </script>
-<script src="views.js?v=2"></script>
+<script src="views.js?v=3"></script>
 </body>
 </html>

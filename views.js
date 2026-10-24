@@ -158,7 +158,7 @@
   const store = { get(k, d) { try { const v = localStorage.getItem('bcn.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('bcn.' + k, JSON.stringify(v)); } catch (e) {} } };
   let pBase = store.get('pBase', 'sat'); if (!PBASES[pBase]) pBase = 'sat';
   let pOn = store.get('pOv', { borders: true, grid: true, rings: true, quakes: true, fires: false, warnings: false, me: true });
-  let pReady = false, land = null, borders = null, center = 'pole', pScale = 1, ctx, cv, proj, path, lastMark = null;
+  let pReady = false, land = null, borders = null, center = 'pole', pScale = 1, ox = 0, oy = 0, pT = [0, 0], ctx, cv, proj, path, lastMark = null;
   const pdata = { quakes: null, fires: null, warnings: null };
   const mosaic = {};   // base key -> {canvas, data, size} | 'loading' | 'fail'
 
@@ -208,13 +208,35 @@
       } catch (e) { B.toast('Polar view needs a connection to load', 4000); return; }
       cv = $('polar'); ctx = cv.getContext('2d'); pReady = true;
       window.addEventListener('resize', () => view === 'polar' && drawPolar(lastMark));
-      cv.addEventListener('click', polarTap);
-      let pinch = 0, pinchT = 0;
-      cv.addEventListener('touchmove', e => { if (e.touches.length === 2) { const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); if (pinch) { pScale = Math.min(8, Math.max(1, pScale * d / pinch)); clearTimeout(pinchT); pinchT = setTimeout(() => drawPolar(lastMark), 60); } pinch = d; } }, { passive: true });
-      cv.addEventListener('touchend', () => pinch = 0);
-      cv.addEventListener('wheel', e => { e.preventDefault(); pScale = Math.min(8, Math.max(1, pScale * (e.deltaY < 0 ? 1.15 : 0.87))); drawPolar(lastMark); }, { passive: false });
+      // pan with one finger, pinch with two, double-tap to zoom in, tap to measure
+      const pts = new Map(); let moved = 0, start = null, pinch0 = 0, raf = 0, lastTap = 0;
+      const redraw = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawPolar(lastMark); }); };
+      cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); moved = 0; start = [e.clientX, e.clientY]; pinch0 = 0; });
+      cv.addEventListener('pointermove', e => {
+        if (!pts.has(e.pointerId)) return; const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+        const rect = cv.getBoundingClientRect();
+        if (pts.size === 1) { ox += e.clientX - prev[0]; oy += e.clientY - prev[1]; moved += Math.abs(e.clientX - prev[0]) + Math.abs(e.clientY - prev[1]); redraw(); }
+        else if (pts.size === 2) { const [p, q] = [...pts.values()], d = Math.hypot(p[0] - q[0], p[1] - q[1]); if (pinch0) zoomAt(d / pinch0, (p[0] + q[0]) / 2 - rect.left, (p[1] + q[1]) / 2 - rect.top); pinch0 = d; moved = 99; }
+      });
+      const up = e => {
+        pts.delete(e.pointerId); pinch0 = 0;
+        if (pts.size === 0 && moved < 8 && e.type === 'pointerup') {
+          const now = Date.now(), rect = cv.getBoundingClientRect();
+          if (now - lastTap < 300) { zoomAt(2, e.clientX - rect.left, e.clientY - rect.top); lastTap = 0; } else { lastTap = now; polarTap(e); }
+        }
+      };
+      cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+      cv.addEventListener('wheel', e => { e.preventDefault(); const rect = cv.getBoundingClientRect(); zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - rect.left, e.clientY - rect.top); }, { passive: false });
     }
     updateChip(); loadPolarData(); drawPolar(lastMark);
+  }
+  // zoom by factor f keeping screen point (px,py) fixed
+  function zoomAt(f, px, py) {
+    const ns = Math.min(40, Math.max(1, pScale * f)); f = ns / pScale; if (f === 1) return;
+    if (px == null) { px = pT[0]; py = pT[1]; }
+    ox += (px - pT[0]) * (1 - f); oy += (py - pT[1]) * (1 - f); pScale = ns;
+    if (pScale === 1) { ox = 0; oy = 0; }
+    drawPolar(lastMark);
   }
   function centerLL() {
     if (center === 'me') { const f = B.getFix(); if (f) return [f.ll[1], f.ll[0]]; }
@@ -249,7 +271,7 @@
     const [lon0, lat0] = centerLL();
     const top = 150, bot = 160, rad = Math.max(60, Math.min(W - 16, H - top - bot) / 2);
     proj = d3.geoAzimuthalEquidistant().rotate([-lon0, -lat0]).clipAngle(180 - 1e-3).precision(0.2)
-      .scale(rad / Math.PI * pScale).translate([W / 2, top + (H - top - bot) / 2]);
+      .scale(rad / Math.PI * pScale).translate(pT = [W / 2 + ox, top + (H - top - bot) / 2 + oy]);
     path = d3.geoPath(proj, ctx);
     ctx.fillStyle = '#04060a'; ctx.fillRect(0, 0, W, H);
     ctx.beginPath(); path({ type: 'Sphere' }); ctx.fillStyle = '#0d2233'; ctx.fill();
@@ -300,12 +322,16 @@
   }
   document.querySelectorAll('#polarPane [data-c]').forEach(b => b.addEventListener('click', () => {
     if (b.dataset.c === 'me' && !B.getFix()) { B.toast('No GPS fix yet'); return; }
-    center = b.dataset.c; pScale = 1;
+    center = b.dataset.c; pScale = 1; ox = oy = 0;
     document.querySelectorAll('#polarPane [data-c]').forEach(x => x.classList.toggle('on', x === b));
     $('pInfo').textContent = PINFO; drawPolar();
   }));
-  $('pZin').addEventListener('click', () => { pScale = Math.min(8, pScale * 1.4); drawPolar(lastMark); });
-  $('pZout').addEventListener('click', () => { pScale = Math.max(1, pScale / 1.4); drawPolar(lastMark); });
+  // shared + / − / reset buttons route to whichever view is showing
+  window.BCN_zoom = dir => {
+    if (view === 'globe' && globe) { dir === 0 ? globe.easeTo({ zoom: 1.6, center: globe.getCenter(), duration: 800 }) : dir > 0 ? globe.zoomIn() : globe.zoomOut(); return true; }
+    if (view === 'polar' && pReady) { if (dir === 0) { pScale = 1; ox = oy = 0; drawPolar(lastMark); } else { const W = cv.clientWidth, H = cv.clientHeight; zoomAt(dir > 0 ? 1.6 : 1 / 1.6, W / 2, 150 + (H - 310) / 2); } return true; }
+    return false;
+  };
   // restore the Map's own chip text when leaving Polar
   document.querySelectorAll('.views [data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view !== 'polar') document.dispatchEvent(new Event('bcn:chip')); }));
 })();
