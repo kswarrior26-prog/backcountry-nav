@@ -995,19 +995,35 @@ function runSearch(q,submit){
   renderResults(items);
   if(c&&!submit)return;
   if(q.length<2)return;
-  const near=map.getCenter();
-  fetch('https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=7&text='+encodeURIComponent(q)+'&location='+near.lng.toFixed(3)+','+near.lat.toFixed(3))
-    .then(r=>r.json()).then(j=>{if(seq!==sSeq)return;const s=(j.suggestions||[]).map(x=>{const p=x.text.split(', ');return{k:'place',name:p[0],sub:p.slice(1).join(', '),magic:x.magicKey,full:x.text}});
-      s.forEach(x=>x.name=x.full);s.forEach(x=>{const p=x.full.split(', ');x.name=p[0];x.sub=p.slice(1).join(', ')});
-      renderResults(items.concat(s));if(submit&&!items.length&&s.length)pick(s[0])})
-    .catch(()=>{ // fallback: OpenStreetMap Nominatim (on submit only, per its usage policy)
-      if(!submit||seq!==sSeq)return;
-      fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=7&q='+encodeURIComponent(q)).then(r=>r.json()).then(j=>{if(seq!==sSeq)return;
-        const s=j.map(x=>{const p=x.display_name.split(', ');return{k:'place',name:p[0],sub:p.slice(1,4).join(', '),lat:+x.lat,lon:+x.lon,zoom:x.type==='peak'?15:13}});
-        renderResults(items.concat(s));if(!items.length&&!s.length)toast('No places found')}).catch(()=>toast('Place search needs a connection. Coordinates still work offline.',3500))});
+  if(!navigator.onLine&&!items.length){$('searchHelp').hidden=false;toast('No signal. Coordinates and waypoints still work offline.',3000);return}
+  findPlaces(q,submit).then(s=>{if(seq!==sSeq)return;renderResults(items.concat(s));
+      if(submit&&!items.length&&s.length)pick(s[0]);
+      if(submit&&!items.length&&!s.length)toast('No places found for "'+q+'"')})
+    .catch(()=>{if(seq===sSeq&&submit)toast('Place search needs a connection. Coordinates still work offline.',3500)});
 }
-$('searchIn').addEventListener('input',e=>{clearTimeout(sTimer);const v=e.target.value;sTimer=setTimeout(()=>runSearch(v,false),250)});
-$('searchForm').addEventListener('submit',e=>{e.preventDefault();const v=$('searchIn').value;if(sItems.length&&sItems[0].k!=='recent'&&(sItems[0].k==='coord'||sItems.length===1)){pick(sItems[0]);return}if(sItems.length&&sItems[0].k==='place'){pick(sItems[0]);return}runSearch(v,true)});
+const PZOOM={peak:15,volcano:14,spring:16,campsite:16,camp_site:16,trailhead:16,waterfall:16,saddle:15,viewpoint:16,lake:13,reservoir:13,pond:15,water:13,river:12,stream:14,
+  house:17,building:17,street:15,road:15,track:15,path:15,city:12,town:13,village:14,hamlet:15,suburb:14,county:9,state:7,country:5,park:12,nature_reserve:11,forest:11,protected_area:11};
+// Place search with fallbacks: Photon (OSM, as-you-type) → Esri → Nominatim (OSM)
+async function findPlaces(q,submit){
+  const c=map.getCenter();
+  try{
+    const j=await (await fetch('https://photon.komoot.io/api/?limit=8&q='+encodeURIComponent(q)+'&lat='+c.lat.toFixed(3)+'&lon='+c.lng.toFixed(3))).json();
+    const out=(j.features||[]).map(f=>{const p=f.properties,[lon,lat]=f.geometry.coordinates;
+      const kind=(p.osm_value||p.type||'').replace(/_/g,' ');
+      const sub=[kind&&kind!=='yes'?kind[0].toUpperCase()+kind.slice(1):'',p.city||p.county,p.state,p.country].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(', ');
+      return{k:'place',name:p.name||[p.housenumber,p.street].filter(Boolean).join(' ')||p.city||'Place',sub,lat,lon,zoom:PZOOM[p.osm_value]||PZOOM[p.type]||13}});
+    if(out.length)return out;
+  }catch(e){}
+  try{
+    const j=await (await fetch('https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=7&outFields=Type,Addr_type,Region,Country&SingleLine='+encodeURIComponent(q)+'&location='+c.lng.toFixed(3)+','+c.lat.toFixed(3))).json();
+    if(!j.error&&j.candidates&&j.candidates.length)return j.candidates.map(x=>{const p=x.address.split(', ');return{k:'place',name:p[0],sub:p.slice(1).join(', '),lat:x.location.y,lon:x.location.x,zoom:zoomFor(x.attributes)}});
+  }catch(e){}
+  if(!submit)return[];
+  const j=await (await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=7&q='+encodeURIComponent(q))).json();
+  return j.map(x=>{const p=x.display_name.split(', ');return{k:'place',name:p[0],sub:p.slice(1,4).join(', '),lat:+x.lat,lon:+x.lon,zoom:PZOOM[x.type]||13}});
+}
+$('searchIn').addEventListener('input',e=>{clearTimeout(sTimer);const v=e.target.value;sTimer=setTimeout(()=>runSearch(v,false),400)});
+$('searchForm').addEventListener('submit',e=>{e.preventDefault();clearTimeout(sTimer);const v=$('searchIn').value.trim();if(!v)return;const first=sItems.find(x=>x.k!=='recent');if(first&&first.lat!=null){pick(first);return}runSearch(v,true)});
 
 window.BCN={map,L,BASES,OVERLAYS,HZ,FULL,ovLayers:()=>ovLayers,ovOpacity:()=>ovOpacity,isExport:l=>l instanceof ArcExport,toggleOv,openSheet,getBaseKey:()=>baseKey,getBase:()=>baseLayer,getBaseDef:()=>BASES[baseKey],getFix:()=>fix,units:()=>U[units],esc,card,toast,hav,bearing};
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
