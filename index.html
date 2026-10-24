@@ -18,15 +18,43 @@
   --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"Barlow",system-ui,-apple-system,sans-serif;
   --f-data:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --mapbg:#20241b; --attr:rgba(20,23,15,.7); --popup:#ffffff; --popup-ink:#222;
   color-scheme:dark;
 }
+/* Light mode: bright sun-readable panels */
+:root[data-mode="light"]{--ground:#eef0e6;--panel:rgba(250,250,244,.94);--panel-solid:#fbfbf6;--line:#c9ccb8;--ink:#1d2116;--dim:#5d6250;--mapbg:#e4e6da;--attr:rgba(250,250,244,.8);--sky:#1f7fb3;--ok:#3d8c1e;--warn:#a87400;--bad:#c62f24;color-scheme:light}
+/* Night vision: red on black, nothing bright */
+:root[data-mode="night"]{--ground:#000;--panel:rgba(8,0,0,.94);--panel-solid:#0a0000;--line:#3d0a0a;--ink:#ff3b2f;--dim:#a3261e;--blaze:#d62a1e;--blaze-ink:#000;--sky:#ff5a4e;--ok:#ff3b2f;--warn:#ff3b2f;--bad:#ff6b5e;--mapbg:#000;--attr:rgba(0,0,0,.8);--popup:#120000;--popup-ink:#ff3b2f;color-scheme:dark}
+/* Accent themes (not in night mode) */
+:root[data-accent="forest"]:not([data-mode="night"]){--blaze:#4caf50;--blaze-ink:#04140a}
+:root[data-accent="sky"]:not([data-mode="night"]){--blaze:#2f9bea;--blaze-ink:#00111f}
+:root[data-accent="desert"]:not([data-mode="night"]){--blaze:#d9a441;--blaze-ink:#1d1300}
+:root[data-accent="violet"]:not([data-mode="night"]){--blaze:#a77bf3;--blaze-ink:#12062a}
+:root[data-accent="camo"]:not([data-mode="night"]){--blaze:#8a9a5b;--blaze-ink:#0f1307}
+:root[data-mode="light"][data-accent="forest"]{--blaze:#2e7d32;--blaze-ink:#fff}
+:root[data-mode="light"][data-accent="sky"]{--blaze:#1769aa;--blaze-ink:#fff}
+:root[data-mode="light"][data-accent="desert"]{--blaze:#a8741a;--blaze-ink:#fff}
+:root[data-mode="light"][data-accent="violet"]{--blaze:#6d3fc0;--blaze-ink:#fff}
+:root[data-mode="light"][data-accent="camo"]{--blaze:#5a6a2c;--blaze-ink:#fff}
+:root[data-mode="light"]:not([data-accent]),:root[data-mode="light"][data-accent="blaze"]{--blaze:#e85a00;--blaze-ink:#fff}
+/* Map tile styles */
+:root[data-mapstyle="dim"] .leaflet-tile-pane,:root[data-mapstyle="dim"] #globe canvas,:root[data-mapstyle="dim"] #polar{filter:brightness(.62) saturate(.85)}
+:root[data-mapstyle="invert"] .leaflet-tile-pane,:root[data-mapstyle="invert"] #globe canvas{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)}
+:root[data-mode="night"] .leaflet-tile-pane,:root[data-mode="night"] #globe canvas,:root[data-mode="night"] #polar{filter:grayscale(1) brightness(.55) sepia(1) hue-rotate(-45deg) saturate(6)!important}
+:root[data-mode="night"] .leaflet-overlay-pane,:root[data-mode="night"] .leaflet-marker-pane{filter:grayscale(1) sepia(1) hue-rotate(-45deg) saturate(5)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip,.maplibregl-popup-content{background:var(--popup)!important;color:var(--popup-ink)!important}
+.ldpop .c{color:var(--popup-ink)!important;opacity:.85}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.sw{all:unset;cursor:pointer;width:36px;height:36px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center}
+.sw.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--ground) inset}
+.sw:focus-visible{outline:2px solid var(--sky);outline-offset:2px}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--ground);color:var(--ink);font:15px/1.4 var(--f-body);overscroll-behavior:none}
-#map{position:fixed;inset:0;background:#20241b}
-.leaflet-container{font-family:var(--f-body);background:#20241b}
-.leaflet-control-attribution{background:rgba(20,23,15,.7)!important;color:var(--dim)!important;font-size:10px}
+#map{position:fixed;inset:0;background:var(--mapbg)}
+.leaflet-container{font-family:var(--f-body);background:var(--mapbg)}
+.leaflet-control-attribution{background:var(--attr)!important;color:var(--dim)!important;font-size:10px}
 .leaflet-control-attribution a{color:var(--sky)!important}
-.leaflet-control-scale-line{background:rgba(20,23,15,.75);color:var(--ink);border-color:var(--ink);font-family:var(--f-data);font-size:11px}
+.leaflet-control-scale-line{background:var(--attr);color:var(--ink);border-color:var(--ink);font-family:var(--f-data);font-size:11px}
 .leaflet-bottom.leaflet-left{bottom:calc(env(safe-area-inset-bottom,0px) + 104px)}
 .leaflet-bottom.leaflet-right{bottom:calc(env(safe-area-inset-bottom,0px) + 98px)}
 
@@ -166,16 +194,16 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 <button class="compass" id="compass" aria-label="Compass. Tap to enable or toggle map rotation">
   <svg viewBox="0 0 100 100" aria-hidden="true">
     <g id="rose">
-      <circle cx="50" cy="50" r="44" fill="none" stroke="#3a4230" stroke-width="1"/>
+      <circle cx="50" cy="50" r="44" fill="none" style="stroke:var(--line)" stroke-width="1"/>
       <g id="ticks"></g>
-      <polygon points="50,12 56,50 44,50" fill="#ff6a13"/>
-      <polygon points="50,88 56,50 44,50" fill="#e9e6d6"/>
-      <text x="50" y="27" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="12" fill="#14170f">N</text>
-      <text x="80" y="54" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="600" font-size="10" fill="#a3a58e">E</text>
-      <text x="20" y="54" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="600" font-size="10" fill="#a3a58e">W</text>
-      <text x="50" y="82" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="600" font-size="10" fill="#14170f">S</text>
+      <polygon points="50,12 56,50 44,50" style="fill:var(--blaze)"/>
+      <polygon points="50,88 56,50 44,50" style="fill:var(--ink)"/>
+      <text x="50" y="27" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="12" style="fill:var(--blaze-ink)">N</text>
+      <text x="80" y="54" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="600" font-size="10" style="fill:var(--dim)">E</text>
+      <text x="20" y="54" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="600" font-size="10" style="fill:var(--dim)">W</text>
+      <text x="50" y="82" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="600" font-size="10" style="fill:var(--ground)">S</text>
     </g>
-    <polygon points="50,1 54,8 46,8" fill="#e9e6d6"/>
+    <polygon points="50,1 54,8 46,8" style="fill:var(--ink)"/>
   </svg>
   <div class="hdg" id="hdgLbl">TAP</div>
 </button>
@@ -269,6 +297,29 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
     <button class="pill" data-u="imp">mph · ft</button>
     <button class="pill" data-u="met">km/h · m</button>
     <button class="pill" data-u="nau">knots · ft</button>
+  </div>
+  <h3>Appearance</h3>
+  <div class="row" id="modeRow">
+    <button class="pill" data-mode="auto">Auto</button>
+    <button class="pill" data-mode="light">Light</button>
+    <button class="pill" data-mode="dark">Dark</button>
+    <button class="pill" data-mode="night">Night red</button>
+  </div>
+  <p class="note" style="margin-top:6px">Night red keeps your eyes adjusted to the dark before sunrise. Auto follows your phone's setting.</p>
+  <h3>Theme color</h3>
+  <div class="swatches" id="accentRow">
+    <button class="sw" data-accent="blaze" aria-label="Blaze orange" style="background:#ff6a13"></button>
+    <button class="sw" data-accent="camo" aria-label="Camo green" style="background:#8a9a5b"></button>
+    <button class="sw" data-accent="forest" aria-label="Forest green" style="background:#4caf50"></button>
+    <button class="sw" data-accent="desert" aria-label="Desert tan" style="background:#d9a441"></button>
+    <button class="sw" data-accent="sky" aria-label="Sky blue" style="background:#2f9bea"></button>
+    <button class="sw" data-accent="violet" aria-label="Violet" style="background:#a77bf3"></button>
+  </div>
+  <h3>Map brightness</h3>
+  <div class="row" id="mapStyleRow">
+    <button class="pill" data-ms="normal">Normal</button>
+    <button class="pill" data-ms="dim">Dimmed</button>
+    <button class="pill" data-ms="invert">Dark map</button>
   </div>
   <h3>Display</h3>
   <div class="row">
@@ -592,7 +643,7 @@ $('bRec').onclick=()=>{startGPS();recording=!recording;$('bRec').classList.toggl
 
 // ---------- compass ----------
 let compassHdg=null, compassOn=false, rotateMap=false;store.set('rotate',false);
-(function ticks(){let s='';for(let i=0;i<360;i+=15){const big=i%45===0,r1=big?37:40,a=i*Math.PI/180;s+=`<line x1="${50+r1*Math.sin(a)}" y1="${50-r1*Math.cos(a)}" x2="${50+44*Math.sin(a)}" y2="${50-44*Math.cos(a)}" stroke="${big?'#e9e6d6':'#a3a58e'}" stroke-width="${big?1.6:1}"/>`}$('ticks').innerHTML=s})();
+(function ticks(){let s='';for(let i=0;i<360;i+=15){const big=i%45===0,r1=big?37:40,a=i*Math.PI/180;s+=`<line x1="${50+r1*Math.sin(a)}" y1="${50-r1*Math.cos(a)}" x2="${50+44*Math.sin(a)}" y2="${50-44*Math.cos(a)}" style="stroke:var(${big?'--ink':'--dim'})" stroke-width="${big?1.6:1}"/>`}$('ticks').innerHTML=s})();
 function declinationNote(){return ''}
 let compassSrc='', lastOrientT=0, compassHint=false;
 function setHeading(h,src){
@@ -787,6 +838,23 @@ $('mapRetry').onclick=()=>{$('mapWarn').hidden=true;triedBases.length=0;setBase(
 if(!(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'))startCompass();
 else document.addEventListener('click',function first(e){if(!compassOn&&!e.target.closest('#compass')){startCompass()}document.removeEventListener('click',first,true)},true);
 document.addEventListener('bcn:chip',renderLayerUI);
+// ---------- themes ----------
+const theme={mode:store.get('mode','auto'),accent:store.get('accent','blaze'),ms:store.get('ms','normal')};
+const mq=window.matchMedia?matchMedia('(prefers-color-scheme: light)'):null;
+function applyTheme(){const R=document.documentElement;
+  const m=theme.mode==='auto'?(mq&&mq.matches?'light':'dark'):theme.mode;
+  R.dataset.mode=m;R.dataset.accent=theme.accent;R.dataset.mapstyle=theme.ms;
+  const meta=document.querySelector('meta[name=theme-color]');if(meta)meta.content=m==='light'?'#eef0e6':m==='night'?'#000000':'#14170f';
+  document.querySelectorAll('#modeRow [data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===theme.mode));
+  document.querySelectorAll('#accentRow [data-accent]').forEach(b=>b.classList.toggle('on',b.dataset.accent===theme.accent));
+  document.querySelectorAll('#mapStyleRow [data-ms]').forEach(b=>b.classList.toggle('on',b.dataset.ms===theme.ms));
+  trackLine.setStyle({color:getComputedStyle(R).getPropertyValue('--blaze').trim()||'#ff6a13'});
+  document.dispatchEvent(new Event('bcn:theme'));}
+$('modeRow').onclick=e=>{const b=e.target.closest('[data-mode]');if(b){theme.mode=b.dataset.mode;store.set('mode',theme.mode);applyTheme()}};
+$('accentRow').onclick=e=>{const b=e.target.closest('[data-accent]');if(b){theme.accent=b.dataset.accent;store.set('accent',theme.accent);applyTheme()}};
+$('mapStyleRow').onclick=e=>{const b=e.target.closest('[data-ms]');if(b){theme.ms=b.dataset.ms;store.set('ms',theme.ms);applyTheme()}};
+if(mq&&mq.addEventListener)mq.addEventListener('change',()=>theme.mode==='auto'&&applyTheme());
+applyTheme();
 function zoomBtn(dir){if(window.BCN_zoom&&window.BCN_zoom(dir))return;
   if(dir>0)map.zoomIn();else if(dir<0)map.zoomOut();
   else{const ll=fix?fix.ll:null;if(ll)map.setView(ll,14);else map.setZoom(5);follow=!!ll;$('bLocate').classList.toggle('on',follow)}}
@@ -795,6 +863,6 @@ window.BCN={map,L,BASES,OVERLAYS,HZ,FULL,ovLayers:()=>ovLayers,ovOpacity:()=>ovO
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
 })();
 </script>
-<script src="views.js?v=3"></script>
+<script src="views.js?v=4"></script>
 </body>
 </html>
