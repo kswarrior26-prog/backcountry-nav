@@ -156,6 +156,7 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
   <button class="btn" id="bLocate" aria-label="Center on my location and follow"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg></button>
   <button class="btn rec" id="bRec" aria-label="Record track"><svg viewBox="0 0 24 24"><path d="M4 18c3-1 3-7 7-7s4 5 9 3"/><circle cx="4" cy="18" r="1.5"/><circle cx="20" cy="14" r="1.5"/></svg></button>
   <button class="btn" id="bWpt" aria-label="Drop waypoint at my location"><svg viewBox="0 0 24 24"><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></button>
+  <button class="btn" id="b4x4" aria-label="4x4 mode: show vehicle trails" style="font:700 14px var(--f-display);letter-spacing:.04em">4x4</button>
   <button class="btn" id="bWx" aria-label="Weather"><svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 0-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 18z"/></svg></button>
   <button class="btn" id="bMenu" aria-label="Tracks, waypoints, offline and settings"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 </div>
@@ -176,6 +177,8 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 <!-- Layers sheet -->
 <div class="sheet" id="sLayers" hidden role="dialog" aria-label="Map layers">
   <h2>Map layers <button class="x" data-close>Close</button></h2>
+  <div class="row" style="margin-bottom:4px"><button class="cta" id="fx4" style="flex:1">4x4 mode · show vehicle trails</button></div>
+  <p class="note">Turns on Forest Service and BLM routes open to vehicles over an off-road topo. Check the official MVUM for seasonal closures before you go.</p>
   <h3>Base map</h3>
   <div class="opts" id="baseOpts"></div>
   <h3>Overlays</h3>
@@ -299,6 +302,12 @@ function watchTiles(layer,isBase){
   return layer;
 }
 const triedBases=[];
+// ArcGIS dynamic map services (no cached tiles): request a 256px image per map tile
+const ArcExport=CachedTiles.extend({
+  getTileUrl(c){const W=20037508.342789244,s=2*W/Math.pow(2,c.z),x0=-W+c.x*s,y1=W-c.y*s;
+    return this._url+'/export?bbox='+[x0,y1-s,x0+s,y1].map(v=>v.toFixed(2)).join(',')+'&bboxSR=3857&imageSR=3857&size=256,256&dpi=96&format=png32&transparent=true'+(this.options.layers?'&layers='+this.options.layers:'')+'&f=image'}
+});
+const ax=(url,o)=>new ArcExport(url,Object.assign({maxZoom:19,minZoom:8},o));
 const NM='https://basemap.nationalmap.gov/arcgis/rest/services/';
 const FAA='https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/';
 const usgsAttr='USGS The National Map';
@@ -314,6 +323,8 @@ const BASES={
   faaIfr:{name:'FAA IFR Low Enroute',d:'Airways, MEAs, navaids',l:()=>tl(FAA+'IFR_AreaLow/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:12,attribution:'FAA Aeronautical Information Services'})}
 };
 const OVERLAYS={
+  mvum:{name:'4x4 · Forest Service',d:'USFS Motor Vehicle Use Map: roads & trails open to vehicles, by class and season. Zoom in to see.',l:()=>ax('https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_MVUM_02/MapServer',{attribution:'USDA Forest Service MVUM'})},
+  blm:{name:'4x4 · BLM routes',d:'BLM roads, primitive roads & trails on public land. Zoom in to see.',l:()=>ax('https://gis.blm.gov/arcgis/rest/services/transportation/BLM_Natl_GTLF_Public_Display/MapServer',{attribution:'Bureau of Land Management GTLF'})},
   geology:{name:'Geologic map',d:'Bedrock units from USGS & state surveys (Macrostrat)',l:()=>tl('https://tiles.macrostrat.org/carto/{z}/{x}/{y}.png',{attribution:'Macrostrat / USGS & state geological surveys'})},
   relief:{name:'Hillshade',d:'USGS shaded relief on top',l:()=>tl(NM+'USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:13,attribution:usgsAttr})},
   hydro:{name:'Water',d:'USGS streams, springs, lakes',l:()=>tl(NM+'USGSHydroCached/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,attribution:usgsAttr})},
@@ -331,9 +342,14 @@ map.on('moveend',()=>store.set('view',{c:[map.getCenter().lat,map.getCenter().ln
 let baseKey=store.get('base','usgsTopo'); if(!BASES[baseKey]) baseKey='usgsTopo';
 let baseLayer=null; const ovLayers={}; let ovOn=store.get('ov',[]); let ovOpacity=store.get('ovOp',0.65);
 function setBase(k){ if(baseLayer) map.removeLayer(baseLayer); baseKey=k; baseLayer=watchTiles(BASES[k].l(),true).addTo(map); baseLayer.bringToBack(); store.set('base',k); renderLayerUI() }
+const FULL=['mvum','blm'];
+function fourByFour(){const on=!(ovLayers.mvum&&ovLayers.blm);
+  if(on){if(!['openTopo','usgsTopo','usgsImgTopo'].includes(baseKey))setBase('openTopo');toggleOv('mvum',true);toggleOv('blm',true);if(map.getZoom()<11)map.setZoom(11);toast('4x4 mode: Forest Service and BLM vehicle routes on',3000)}
+  else{toggleOv('mvum',false);toggleOv('blm',false);toast('4x4 routes off')}}
 function toggleOv(k,force){
   const on=force!=null?force:!ovLayers[k];
-  if(on && !ovLayers[k]){ ovLayers[k]=OVERLAYS[k].l().setOpacity(k==='radar'?0.75:ovOpacity).addTo(map) }
+  if(on && !ovLayers[k]){ ovLayers[k]=OVERLAYS[k].l().setOpacity(k==='radar'?0.75:FULL.includes(k)?1:ovOpacity).addTo(map);
+    if(FULL.includes(k)&&map.getZoom()<8&&force==null)toast('Zoom in closer to see vehicle routes',3000) }
   if(!on && ovLayers[k]){ map.removeLayer(ovLayers[k]); delete ovLayers[k] }
   ovOn=Object.keys(ovLayers); store.set('ov',ovOn.filter(x=>x!=='radar')); renderLayerUI();
   $('wxRadar').classList.toggle('on',!!ovLayers.radar);
@@ -344,9 +360,12 @@ function renderLayerUI(){
   if(loop.layer) ovs.push('Radar loop');
   $('ovNames').textContent=ovs.length?'+ '+ovs.join(', '):'';
   $('baseOpts').innerHTML=Object.entries(BASES).map(([k,b])=>`<button class="opt${k===baseKey?' on':''}" data-b="${k}"><b>${b.name}</b><small>${b.d}</small></button>`).join('');
+  const x4=!!(ovLayers.mvum&&ovLayers.blm);$('b4x4').classList.toggle('on',x4);
+  $('fx4').textContent=x4?'4x4 mode on · tap to turn off':'4x4 mode · show vehicle trails';
   $('ovOpts').innerHTML=Object.entries(OVERLAYS).map(([k,b])=>`<button class="opt${ovLayers[k]?' on':''}" data-o="${k}"><b>${b.name}</b><small>${b.d}</small></button>`).join('');
 }
 $('baseOpts').addEventListener('click',e=>{const b=e.target.closest('[data-b]');if(b)setBase(b.dataset.b)});
+$('fx4').addEventListener('click',fourByFour);$('b4x4').addEventListener('click',fourByFour);
 $('ovOpts').addEventListener('click',e=>{const b=e.target.closest('[data-o]');if(b)toggleOv(b.dataset.o)});
 $('ovOpacity').value=ovOpacity;
 $('ovOpacity').addEventListener('input',e=>{ovOpacity=+e.target.value;store.set('ovOp',ovOpacity);Object.entries(ovLayers).forEach(([k,l])=>{if(k!=='radar')l.setOpacity(ovOpacity)})});
