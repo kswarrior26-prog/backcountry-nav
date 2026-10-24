@@ -199,6 +199,17 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 .ddb{padding:0 12px 14px;border-top:1px solid var(--line)}
 .ddb h4{font:600 12px/1 var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:14px 2px 8px}
 @media (prefers-reduced-motion:reduce){.dd>summary::after{transition:none}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:12px;color:var(--dim)}
+.legend span{display:inline-flex;align-items:center;gap:5px}.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.pk{all:unset;cursor:pointer;display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:9px 10px}
+.pk:focus-visible{outline:2px solid var(--sky)}
+.pk .sw2{flex:none;width:8px;align-self:stretch;border-radius:4px}
+.pk .m{flex:1;min-width:0}.pk .m b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk .m small{display:block;color:var(--dim);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk .d{flex:none;text-align:right;font:600 13px var(--f-data);font-variant-numeric:tabular-nums}
+.pk .d small{display:block;color:var(--dim);font:500 11px var(--f-data)}
+.acc{display:inline-block;font:700 10px var(--f-display);letter-spacing:.08em;text-transform:uppercase;padding:1px 6px;border-radius:4px;border:1px solid currentColor;margin-left:4px}
+.acc.ok{color:var(--ok)}.acc.warn{color:var(--warn)}.acc.bad{color:var(--bad)}
 .ldpop{font:13px var(--f-body)}
 .ldpop .c{font:12px var(--f-data);color:#333;margin:4px 0}
 .ldpop button{border:0;background:var(--blaze);color:var(--blaze-ink);font:700 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:5px;cursor:pointer;margin-top:4px}
@@ -244,6 +255,7 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
   <button class="btn rec" id="bRec" aria-label="Record track"><svg viewBox="0 0 24 24"><path d="M4 18c3-1 3-7 7-7s4 5 9 3"/><circle cx="4" cy="18" r="1.5"/><circle cx="20" cy="14" r="1.5"/></svg></button>
   <button class="btn" id="bWpt" aria-label="Drop waypoint at my location"><svg viewBox="0 0 24 24"><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></button>
   <button class="btn" id="b4x4" aria-label="4x4 mode: show vehicle trails" style="font:700 14px var(--f-display);letter-spacing:.04em">4x4</button>
+  <button class="btn" id="bParks" aria-label="Parks and public land nearby"><svg viewBox="0 0 24 24"><path d="M12 3 6 11h3l-4 6h14l-4-6h3z"/><path d="M12 17v4"/></svg></button>
   <button class="btn" id="bWx" aria-label="Weather"><svg viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 0-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 18z"/></svg></button>
   <button class="btn" id="bMenu" aria-label="Tracks, waypoints, offline and settings"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 </div>
@@ -286,6 +298,23 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
     </div>
   </details>
   <p class="note">Aeronautical charts are FAA digital VFR/IFR charts. They're for situational awareness, not flight planning.</p>
+</div>
+
+<!-- Parks sheet -->
+<div class="sheet" id="sParks" hidden role="dialog" aria-label="Parks nearby">
+  <h2>Parks nearby <button class="x" data-close>Close</button></h2>
+  <p class="note" id="pkWhere">Public parks, forests and wildlife areas around you, nearest first.</p>
+  <div class="row" id="pkRadius" style="margin-top:8px">
+    <button class="pill" data-r="10">10 mi</button><button class="pill on" data-r="25">25 mi</button><button class="pill" data-r="50">50 mi</button><button class="pill" data-r="100">100 mi</button>
+  </div>
+  <div class="row" id="pkFilter" style="margin-top:8px">
+    <button class="pill on" data-f="all">All</button><button class="pill" data-f="nat">National parks</button><button class="pill" data-f="state">State</button>
+    <button class="pill" data-f="forest">Forests &amp; BLM</button><button class="pill" data-f="wild">Wildlife areas</button><button class="pill" data-f="local">City &amp; county</button>
+  </div>
+  <div class="row" style="margin-top:10px"><button class="ghost" id="pkMap">Show public lands on map</button></div>
+  <div class="legend" id="pkLegend"></div>
+  <div class="list" id="pkList" style="margin-top:10px"><p class="note">Loading…</p></div>
+  <p class="note" style="margin-top:10px">Source: USGS Protected Areas Database (PAD-US). Boundaries and access can lag on-the-ground changes; check signs and the managing agency, especially before hunting.</p>
 </div>
 
 <!-- Weather sheet -->
@@ -501,7 +530,35 @@ const BASES={
   faaTac:{name:'FAA VFR Terminal',d:'Terminal area charts near major airports',l:()=>tl(FAA+'VFR_Terminal/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:12,attribution:'FAA Aeronautical Information Services'})},
   faaIfr:{name:'FAA IFR Low Enroute',d:'Airways, MEAs, navaids',l:()=>tl(FAA+'IFR_AreaLow/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:12,attribution:'FAA Aeronautical Information Services'})}
 };
+// ---------- public lands & parks (USGS PAD-US) ----------
+const PADUS='https://services.arcgis.com/v01gqwM5QqNysAAi/ArcGIS/rest/services/Manager_Name_PADUS/FeatureServer/0';
+const PFIELDS='OBJECTID,Unit_Nm,Mang_Name,Mang_Type,Des_Tp,Pub_Access,GIS_Acres,FeatClass,State_Nm';
+const MANG={NPS:'National Park Service',USFS:'US Forest Service',BLM:'Bureau of Land Management',FWS:'US Fish & Wildlife Service',BOR:'Bureau of Reclamation',USACE:'Army Corps of Engineers',DOD:'Dept. of Defense',DOE:'Dept. of Energy',NOAA:'NOAA',TVA:'Tennessee Valley Authority',NRCS:'NRCS',ARS:'Agricultural Research Service',BIA:'Bureau of Indian Affairs',OTHF:'Federal',SPR:'State Parks',SFW:'State Fish & Wildlife',SDNR:'State Natural Resources',SLB:'State Land Board',SDOL:'State Lands',SDC:'State Conservation',SDF:'State Forestry',OTHS:'State',CITY:'City',CNTY:'County',RPD:'Regional Parks District',REG:'Regional Agency',JNT:'Joint',NGO:'Nonprofit',PVT:'Private',TRIB:'Tribal',UNK:'Unknown'};
+const DES={NP:'National Park',NM:'National Monument',NRA:'National Recreation Area',NF:'National Forest',NG:'National Grassland',NWR:'National Wildlife Refuge',NCA:'National Conservation Area',NT:'National Trail',NSBV:'National Scenic Area',NLS:'National Lakeshore/Seashore',NPRK:'National Park',NMEM:'National Memorial',HCA:'Historic or Cultural Area',WA:'Wilderness Area',WSA:'Wilderness Study Area',WSR:'Wild & Scenic River',RNA:'Research Natural Area',ACEC:'Area of Critical Environmental Concern',IRA:'Inventoried Roadless Area',SP:'State Park',SREC:'State Recreation Area',SW:'State Wildlife Area',SCA:'State Conservation Area',SHCA:'State Habitat Area',SRMA:'State Resource Mgmt Area',SOTH:'State Land',ST:'State Trail',SHPA:'State Historic Area',SF:'State Forest',LP:'Local Park',LREC:'Local Recreation Area',LCA:'Local Conservation Area',LHCA:'Local Historic Area',LOTH:'Local Land',PUB:'Public Land',MPA:'Marine Protected Area',MIL:'Military Land',FOTH:'Federal Land',REA:'Recreation Area',PAGR:'Agricultural Easement',PCON:'Conservation Easement',PFOR:'Forestry Easement',PHCA:'Habitat Easement',PREC:'Recreation Easement',PRAN:'Ranch Easement',TRIBL:'Tribal Land',UNK:'Unknown'};
+const ACCESS={OA:['Open access','ok'],RA:['Restricted access','warn'],XA:['Closed to public','bad'],UK:['Access unknown','']};
+function landColor(p){const m=p.Mang_Name,t=p.Mang_Type;
+  return m==='NPS'?'#8e6bd1':m==='USFS'?'#3f9a3a':m==='BLM'?'#e8c547':m==='FWS'?'#f28b30':m==='DOD'||m==='DOE'?'#c94c4c':m==='BOR'||m==='USACE'?'#5a8fbf':t==='STAT'?'#3fa7d6':t==='LOC'||m==='CITY'||m==='CNTY'||m==='RPD'?'#c27ad6':t==='TRIB'?'#a8794f':t==='FED'?'#7f9a6a':'#9aa0a6'}
+function landPopup(p,extra){const a=ACCESS[p.Pub_Access]||ACCESS.UK;
+  return `<div class="ldpop"><b>${esc(p.Unit_Nm||'Unnamed public land')}</b><div class="c">${esc(DES[p.Des_Tp]||p.Des_Tp||'')}${p.Des_Tp?' · ':''}${esc(MANG[p.Mang_Name]||p.Mang_Name||'')}</div><div class="c">${a[0]}${p.GIS_Acres?' · '+Math.round(p.GIS_Acres).toLocaleString()+' acres':''}${p.FeatClass==='Easement'?' · easement on private land':''}</div>${extra||''}</div>`}
+function pubLandsLayer(){
+  const g=L.layerGroup();let seq=0,tm=0,lastKey='';
+  const load=()=>{if(!g._map)return;const z=g._map.getZoom();
+    if(z<9){g.clearLayers();lastKey='';if(!g._warned){g._warned=1;toast('Zoom in closer to see public land boundaries',3000)}return}
+    const b=g._map.getBounds().pad(0.15),key=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth(),z].map(v=>v.toFixed(2)).join();if(key===lastKey)return;lastKey=key;
+    const my=++seq,off=(360/(256*Math.pow(2,z))).toFixed(6);
+    fetch(PADUS+'/query?where=1%3D1&geometry='+[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(v=>v.toFixed(4)).join(',')+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields='+PFIELDS+'&outSR=4326&maxAllowableOffset='+off+'&geometryPrecision=5&orderByFields=GIS_Acres%20DESC&resultRecordCount=2000&f=geojson')
+      .then(r=>r.json()).then(j=>{if(my!==seq)return;if(j.error)throw j.error;g.clearLayers();
+        j={type:'FeatureCollection',features:(j.features||[]).filter(f=>f&&f.geometry).map(f=>({type:'Feature',properties:f.properties||{},geometry:f.geometry}))};
+        L.geoJSON(j,{filter:f=>f.properties.FeatClass!=='Proclamation',style:f=>{const p=f.properties,c=landColor(p),des=p.FeatClass==='Designation',esm=p.FeatClass==='Easement';
+          return{color:c,weight:des?1.5:1.2,opacity:.95,fillColor:c,fillOpacity:des?0:esm?.12:p.Pub_Access==='XA'?.1:.28,dashArray:esm||des?'5 4':null}},
+          onEachFeature:(f,l)=>l.bindPopup(landPopup(f.properties),{maxWidth:280})}).addTo(g);
+        if(j.properties&&j.properties.exceededTransferLimit||j.exceededTransferLimit)toast('Showing the largest areas. Zoom in for smaller parcels.',2500)})
+      .catch(()=>{if(my===seq)toast('Public land data is unavailable right now',3000)})};
+  const sched=()=>{clearTimeout(tm);tm=setTimeout(load,350)};
+  g.on('add',()=>{g._map.on('moveend',sched);load()});g.on('remove',()=>{map.off('moveend',sched);clearTimeout(tm);g.clearLayers();lastKey=''});
+  return g}
 const OVERLAYS={
+  publands:{name:'Public lands & parks',d:'Who manages the land: national & state parks, forests, BLM, refuges, wildlife areas, city parks (USGS PAD-US)',l:pubLandsLayer},
   labels:{name:'Roads & places',d:'Road, town and boundary labels for imagery',l:()=>tl('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,attribution:'Esri'})},
   roads:{name:'Road lines',d:'Highways and roads drawn over imagery',l:()=>tl('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,attribution:'Esri'})},
   mvum:{name:'4x4 · Forest Service',d:'USFS Motor Vehicle Use Map: roads & trails open to vehicles, by class and season. Zoom in to see.',l:()=>ax('https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_MVUM_02/MapServer',{attribution:'USDA Forest Service MVUM'})},
@@ -578,7 +635,7 @@ function toggleOv(k,force){
   $('wxRadar').classList.toggle('on',!!ovLayers.radar);
 }
 const BASE_GROUPS=[['Topographic',['usgsTopo','openTopo','usgsRelief']],['Satellite & aerial',['sat','satLabels','usgsImgTopo','usgsImg','nasa']],['Aeronautical (FAA)',['faaSec','faaTac','faaIfr']],['Street',['osm']]];
-const OV_GROUPS=[['4x4 & trails',['mvum','blm','trails']],['Terrain & water',['geology','relief','hydro']],['Labels',['labels','roads']],['Weather & aviation',['radar','sectional']]];
+const OV_GROUPS=[['Public land',['publands']],['4x4 & trails',['mvum','blm','trails']],['Terrain & water',['geology','relief','hydro']],['Labels',['labels','roads']],['Weather & aviation',['radar','sectional']]];
 function grp(groups,dict,isOn,attr){const seen=new Set();let h=groups.map(([t,ks])=>{const items=ks.filter(k=>dict[k]);items.forEach(k=>seen.add(k));
     return items.length?`<h4>${t}</h4><div class="opts">${items.map(k=>`<button class="opt${isOn(k)?' on':''}" ${attr}="${k}"><b>${dict[k].name}</b><small>${dict[k].d}</small></button>`).join('')}</div>`:''}).join('');
   const rest=Object.keys(dict).filter(k=>!seen.has(k));if(rest.length)h+=`<h4>More</h4><div class="opts">${rest.map(k=>`<button class="opt${isOn(k)?' on':''}" ${attr}="${k}"><b>${dict[k].name}</b><small>${dict[k].d}</small></button>`).join('')}</div>`;return h}
@@ -845,7 +902,7 @@ async function cacheInfo(){if(!hasCache){$('dlInfo').textContent='Offline saving
 $('dlGo').onclick=async()=>{
   if(!hasCache)return;
   const z=Math.floor(map.getZoom()),b=map.getBounds();
-  const layers=[baseLayer,...Object.entries(ovLayers).filter(([k])=>k!=='radar'&&!HZ[k]).map(([,l])=>l)];
+  const layers=[baseLayer,...Object.entries(ovLayers).filter(([k,l])=>k!=='radar'&&!HZ[k]&&l.getTileUrl).map(([,l])=>l)];
   // getTileUrl needs a zoom context; temporarily compute with layer._getZoomForUrl override
   let urls=[];layers.forEach(l=>{const orig=l._getZoomForUrl;for(let zz=z;zz<=z+depth;zz++){l._getZoomForUrl=()=>zz;urls=urls.concat(tilesFor(l,b,zz,zz))}l._getZoomForUrl=orig});
   urls=[...new Set(urls)];
@@ -1028,6 +1085,72 @@ async function findPlaces(q,submit){
 }
 $('searchIn').addEventListener('input',e=>{clearTimeout(sTimer);const v=e.target.value;sTimer=setTimeout(()=>runSearch(v,false),400)});
 $('searchForm').addEventListener('submit',e=>{e.preventDefault();clearTimeout(sTimer);const v=$('searchIn').value.trim();if(!v)return;const first=sItems.find(x=>x.k!=='recent');if(first&&first.lat!=null){pick(first);return}runSearch(v,true)});
+
+// ---------- parks nearby ----------
+const pk={r:store.get('pkR',25),f:'all',items:[],hl:null,seq:0};
+const pkCat=p=>{const m=p.Mang_Name,t=p.Mang_Type,d=p.Des_Tp;
+  if(m==='NPS'||/^(NP|NM|NRA|NLS|NPRK)$/.test(d))return'nat';
+  if(m==='USFS'||m==='BLM')return'forest';
+  if(m==='FWS'||m==='SFW'||/^(NWR|SW|SHCA)$/.test(d))return'wild';
+  if(t==='STAT')return'state';
+  if(t==='LOC'||/^(CITY|CNTY|RPD)$/.test(m))return'local';
+  return'other'};
+function inRing(pt,ring){let c=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const[xi,yi]=ring[i],[xj,yj]=ring[j];if((yi>pt[1])!==(yj>pt[1])&&pt[0]<(xj-xi)*(pt[1]-yi)/(yj-yi)+xi)c=!c}return c}
+function nearestOn(geom,here){ // returns [distance m, nearest [lat,lon]]
+  const polys=geom.type==='Polygon'?[geom.coordinates]:geom.type==='MultiPolygon'?geom.coordinates:[];
+  const pt=[here[1],here[0]];let best=Infinity,bp=null;
+  for(const poly of polys){if(poly[0]&&inRing(pt,poly[0])&&!poly.slice(1).some(h=>inRing(pt,h)))return[0,here];
+    for(const ring of poly)for(const c of ring){const d=hav(here,[c[1],c[0]]);if(d<best){best=d;bp=[c[1],c[0]]}}}
+  return[best,bp]}
+function pkHere(){return fix?{ll:fix.ll,lbl:'you'}:{ll:[map.getCenter().lat,map.getCenter().lng],lbl:'map center'}}
+function loadParks(){
+  const h=pkHere(),my=++pk.seq;
+  $('pkWhere').textContent=`Public parks, forests and wildlife areas within ${pk.r} miles of ${h.lbl}, nearest first.`;
+  $('pkList').innerHTML='<p class="note">Loading…</p>';
+  fetch(PADUS+'/query?where=1%3D1&geometry='+h.ll[1].toFixed(5)+','+h.ll[0].toFixed(5)+'&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance='+pk.r+'&units=esriSRUnit_StatuteMile&outFields='+PFIELDS+'&outSR=4326&maxAllowableOffset=0.003&geometryPrecision=4&orderByFields=GIS_Acres%20DESC&resultRecordCount=400&f=geojson')
+    .then(r=>r.json()).then(j=>{if(my!==pk.seq)return;if(j.error)throw j.error;
+      const by={};
+      (j.features||[]).forEach(f=>{const p=f.properties;if(!f.geometry||p.FeatClass==='Proclamation'||p.FeatClass==='Easement'||p.Pub_Access==='XA')return;
+        const name=(p.Unit_Nm||'').trim();if(!name)return;
+        const[d,near]=nearestOn(f.geometry,h.ll),k=name.toLowerCase();
+        if(d>pk.r*1609.34*1.02)return;
+        if(!by[k]||d<by[k].d)by[k]={name,p,d,near,f:{type:'Feature',properties:p,geometry:f.geometry},cat:pkCat(p)}});
+      pk.items=Object.values(by).sort((a,b)=>a.d-b.d||(b.p.GIS_Acres||0)-(a.p.GIS_Acres||0));pk.src='padus';renderParks()})
+    .catch(()=>{if(my===pk.seq)loadParksOSM(h,my)})}
+// Fallback: OpenStreetMap parks & protected areas (Overpass)
+function loadParksOSM(h,my){
+  const R=Math.round(pk.r*1609.34),a=`(around:${R},${h.ll[0].toFixed(4)},${h.ll[1].toFixed(4)})`;
+  const q=`[out:json][timeout:25];(nwr["boundary"="national_park"]${a};nwr["boundary"="protected_area"]["name"]${a};nwr["leisure"="nature_reserve"]["name"]${a};nwr["leisure"="park"]["name"]${a};);out center tags 300;`;
+  fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}})
+    .then(r=>r.json()).then(j=>{if(my!==pk.seq)return;const by={};
+      (j.elements||[]).forEach(e=>{const t=e.tags||{},c=e.center||(e.lat!=null?{lat:e.lat,lon:e.lon}:null);if(!c||!t.name)return;
+        const p={Unit_Nm:t.name,Mang_Name:/forest service/i.test(t.operator||'')?'USFS':/national park service/i.test(t.operator||'')||t.boundary==='national_park'?'NPS':/land management/i.test(t.operator||'')?'BLM':/fish/i.test(t.operator||'')?'FWS':'',Mang_Type:t.leisure==='park'?'LOC':'',Des_Tp:'',Pub_Access:t.access==='private'||t.access==='no'?'XA':'UK',operatorTxt:t.operator,kind:t.boundary==='national_park'?'National park':t.leisure==='park'?'Park':t.leisure==='nature_reserve'?'Nature reserve':'Protected area'};
+        if(p.Pub_Access==='XA')return;const d=hav(h.ll,[c.lat,c.lon]),k=t.name.toLowerCase();
+        if(!by[k]||d<by[k].d)by[k]={name:t.name,p,d,near:[c.lat,c.lon],f:null,cat:pkCat(p)}});
+      pk.items=Object.values(by).sort((a,b)=>a.d-b.d);pk.src='osm';renderParks()})
+    .catch(()=>{if(my===pk.seq)$('pkList').innerHTML='<p class="note">Couldn\'t load parks. Check your connection and try again.</p>'})}
+function renderParks(){
+  const u=U[units],h=pkHere(),list=pk.items.filter(x=>pk.f==='all'||x.cat===pk.f);
+  $('pkList').innerHTML=list.length?list.slice(0,80).map((x,i)=>{const p=x.p,a=ACCESS[p.Pub_Access]||ACCESS.UK,b=x.d>0?bearing(h.ll,x.near):null;
+    const kind=p.kind||DES[p.Des_Tp]||p.Des_Tp||'',mg=MANG[p.Mang_Name]||p.operatorTxt||'';
+    return `<button class="pk" data-i="${pk.items.indexOf(x)}"><span class="sw2" style="background:${landColor(p)}"></span><span class="m"><b>${esc(x.name)}</b><small>${esc([kind,mg].filter(Boolean).join(' · '))}${p.GIS_Acres?' · '+Math.round(p.GIS_Acres).toLocaleString()+' ac':''}${a[1]?`<span class="acc ${a[1]}">${a[1]==='ok'?'Open':a[1]==='warn'?'Restricted':''}</span>`:''}</small></span><span class="d">${x.d===0?'Here':(x.d*u.dist).toFixed(x.d*u.dist<10?1:0)+' '+u.du}<small>${x.d===0?'you\'re inside':String(Math.round(b)).padStart(3,'0')+'° '+card(b)}</small></span></button>`}).join('')
+    :`<p class="note">No ${pk.f==='all'?'parks or public land':'matches'} within ${pk.r} miles.${pk.r<100?' Try a bigger radius.':''}</p>`;
+  if(pk.src==='osm')$('pkList').insertAdjacentHTML('afterbegin','<p class="note">Showing OpenStreetMap parks (the USGS service didn\'t respond). Distances are to each park\'s center.</p>')}
+$('pkList').onclick=e=>{const b=e.target.closest('[data-i]');if(!b)return;const x=pk.items[+b.dataset.i];
+  if(pk.hl)map.removeLayer(pk.hl);
+  $('sParks').hidden=true;follow=false;$('bLocate').classList.remove('on');
+  const u=U[units],extra=`<div class="c">${x.d===0?'You\'re inside this area':(x.d*u.dist).toFixed(1)+' '+u.du+' to the nearest edge'}</div>`;
+  if(x.f){pk.hl=L.geoJSON(x.f,{style:{color:'#fff',weight:3,fillColor:landColor(x.p),fillOpacity:.25}}).addTo(map);map.fitBounds(pk.hl.getBounds(),{padding:[40,40],maxZoom:15});
+    L.popup({maxWidth:280}).setLatLng(x.near).setContent(landPopup(x.p,extra)).openOn(map)}
+  else{map.setView(x.near,13);L.popup({maxWidth:280}).setLatLng(x.near).setContent(landPopup(x.p,extra)).openOn(map)}
+  if(pk.hl)setTimeout(()=>{map.once('click',()=>{if(pk.hl){map.removeLayer(pk.hl);pk.hl=null}})},300)};
+$('pkRadius').onclick=e=>{const b=e.target.closest('[data-r]');if(!b)return;pk.r=+b.dataset.r;store.set('pkR',pk.r);document.querySelectorAll('#pkRadius [data-r]').forEach(x=>x.classList.toggle('on',x===b));loadParks()};
+$('pkFilter').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;pk.f=b.dataset.f;document.querySelectorAll('#pkFilter [data-f]').forEach(x=>x.classList.toggle('on',x===b));renderParks()};
+$('pkMap').onclick=()=>{const on=!ovLayers.publands;toggleOv('publands',on);$('pkMap').textContent=on?'Hide public lands on map':'Show public lands on map';
+  if(on){$('sParks').hidden=true;if(map.getZoom()<10)map.setZoom(10)}};
+$('pkLegend').innerHTML=[['National Park Service','#8e6bd1'],['Forest Service','#3f9a3a'],['BLM','#e8c547'],['Fish & Wildlife','#f28b30'],['State','#3fa7d6'],['City & county','#c27ad6'],['Military','#c94c4c'],['Tribal','#a8794f']].map(([n,c])=>`<span><i style="background:${c}"></i>${n}</span>`).join('');
+document.querySelectorAll('#pkRadius [data-r]').forEach(x=>x.classList.toggle('on',+x.dataset.r===pk.r));
+$('bParks').onclick=()=>{$('pkMap').textContent=ovLayers.publands?'Hide public lands on map':'Show public lands on map';openSheet('sParks');loadParks()};
 
 window.BCN={map,L,BASES,OVERLAYS,HZ,FULL,ovLayers:()=>ovLayers,ovOpacity:()=>ovOpacity,isExport:l=>l instanceof ArcExport,toggleOv,openSheet,getBaseKey:()=>baseKey,getBase:()=>baseLayer,getBaseDef:()=>BASES[baseKey],getFix:()=>fix,units:()=>U[units],esc,card,toast,hav,bearing};
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
