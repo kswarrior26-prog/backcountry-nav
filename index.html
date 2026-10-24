@@ -169,6 +169,23 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 .zoombar button:active{background:var(--blaze);color:var(--blaze-ink)}
 .zoombar button:focus-visible{outline:2px solid var(--sky);outline-offset:-2px}
 .zoombar svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.searchbtn{all:unset;cursor:pointer;flex:none;width:40px;height:38px;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
+.searchbtn svg,.sbox svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
+.searchbtn:focus-visible{outline:2px solid var(--sky);outline-offset:2px}
+.searchpane{position:fixed;z-index:2600;left:0;right:0;top:0;max-height:85%;overflow:auto;background:var(--panel-solid);border-bottom:2px solid var(--blaze);box-shadow:0 10px 40px rgba(0,0,0,.5);
+  padding:calc(env(safe-area-inset-top,0px) + 10px) max(12px,env(safe-area-inset-right,0px)) 14px max(12px,env(safe-area-inset-left,0px))}
+.sbox{display:flex;align-items:center;gap:8px;background:var(--ground);border:1px solid var(--line);border-radius:8px;padding:0 4px 0 12px;color:var(--dim)}
+.sbox:focus-within{border-color:var(--blaze)}
+.sbox input{flex:1;min-width:0;border:0;background:none;color:var(--ink);font:500 17px var(--f-body);padding:12px 0;outline:none}
+.sres{display:flex;flex-direction:column;margin-top:8px}
+.sr{all:unset;cursor:pointer;display:flex;gap:12px;align-items:center;padding:11px 6px;border-bottom:1px solid var(--line)}
+.sr:focus-visible,.sr.act{background:color-mix(in srgb,var(--blaze) 14%,transparent);outline:none}
+.sr i{flex:none;width:30px;height:30px;border-radius:6px;display:grid;place-items:center;font:700 11px var(--f-display);letter-spacing:.04em;background:var(--line);color:var(--ink);font-style:normal}
+.sr i.k-coord{background:var(--blaze);color:var(--blaze-ink)}
+.sr .m{min-width:0;flex:1}.sr b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr small{display:block;color:var(--dim);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shelp{margin-top:12px;line-height:1.7}.shelp code{font:12px var(--f-data);background:var(--ground);border:1px solid var(--line);border-radius:4px;padding:1px 5px;white-space:nowrap}
+.srmark{width:22px;height:22px;border-radius:50%;background:var(--blaze);border:3px solid #fff;box-shadow:0 0 0 6px color-mix(in srgb,var(--blaze) 30%,transparent),0 2px 6px rgba(0,0,0,.5)}
 .ldpop{font:13px var(--f-body)}
 .ldpop .c{font:12px var(--f-data);color:#333;margin:4px 0}
 .ldpop button{border:0;background:var(--blaze);color:var(--blaze-ink);font:700 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:6px 10px;border-radius:5px;cursor:pointer;margin-top:4px}
@@ -189,6 +206,7 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
     <button role="tab" data-view="polar" aria-selected="false">Polar</button>
   </div>
   <button class="layerchip" id="layerChip" aria-label="Choose map layers"><b id="baseName">USGS Topo</b> <span id="ovNames"></span></button>
+  <button class="searchbtn" id="searchBtn" aria-label="Search places or coordinates"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
 </div>
 
 <button class="compass" id="compass" aria-label="Compass. Tap to enable or toggle map rotation">
@@ -330,6 +348,16 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 </div>
 
 <div class="toast" id="toast" hidden></div>
+<div class="searchpane" id="searchPane" hidden role="dialog" aria-label="Search">
+  <form class="sbox" id="searchForm" autocomplete="off">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+    <input id="searchIn" type="search" inputmode="search" enterkeyhint="search" placeholder="Place, peak, address or coordinates" aria-label="Search">
+    <button type="button" class="x" id="searchClose">Cancel</button>
+  </form>
+  <div class="sres" id="searchRes" role="listbox"></div>
+  <p class="note shelp" id="searchHelp">Try a town, peak, lake or trailhead. Or type coordinates in any format:<br>
+  <code>39.5874, -105.6432</code> · <code>39°35'15"N 105°38'35"W</code> · <code>39 35.25 N 105 38.58 W</code> · <code>13S 445123 4382456</code></p>
+</div>
 <div class="zoombar" role="group" aria-label="Zoom">
   <button id="zIn" aria-label="Zoom in">+</button>
   <button id="zOut" aria-label="Zoom out">−</button>
@@ -728,14 +756,14 @@ drawWpts();
 
 // long-press / right-click info + USGS elevation
 let pressT=null;
-function infoAt(ll){
-  const pop=L.popup({maxWidth:260}).setLatLng(ll).setContent(`<div class="ldpop"><div class="c">${fmtLL(ll.lat,ll.lng,0)}</div><div class="c">${dms(ll.lat,'N','S')} ${dms(ll.lng,'E','W')}</div><div class="c">${toUTM(ll.lat,ll.lng)}</div><div class="c" id="eleOut">Elevation: looking up…</div>${fix?`<div class="c">${(hav(fix.ll,[ll.lat,ll.lng])*U[units].dist).toFixed(2)} ${U[units].du} at ${String(Math.round(bearing(fix.ll,[ll.lat,ll.lng]))).padStart(3,'0')}°</div>`:''}<button id="popSave">Save waypoint</button></div>`).openOn(map);
+function infoAt(ll,title){
+  const pop=L.popup({maxWidth:260}).setLatLng(ll).setContent(`<div class="ldpop">${title?`<b>${esc(title)}</b>`:''}<div class="c">${fmtLL(ll.lat,ll.lng,0)}</div><div class="c">${dms(ll.lat,'N','S')} ${dms(ll.lng,'E','W')}</div><div class="c">${toUTM(ll.lat,ll.lng)}</div><div class="c" id="eleOut">Elevation: looking up…</div>${fix?`<div class="c">${(hav(fix.ll,[ll.lat,ll.lng])*U[units].dist).toFixed(2)} ${U[units].du} at ${String(Math.round(bearing(fix.ll,[ll.lat,ll.lng]))).padStart(3,'0')}°</div>`:''}<button id="popSave">Save waypoint</button></div>`).openOn(map);
   let ele=null;
   fetch(`https://epqs.nationalmap.gov/v1/json?x=${ll.lng}&y=${ll.lat}&units=Meters&wkid=4326&includeDate=false`).then(r=>r.json()).then(j=>{
     const v=parseFloat(j.value);const o=$('eleOut');if(!o)return;
     if(isFinite(v)&&v>-1000){ele=v;o.textContent='Ground elevation: '+Math.round(v*U[units].alt).toLocaleString()+' '+U[units].au+' (USGS 3DEP)'}else o.textContent='Elevation: outside USGS coverage'
   }).catch(()=>{const o=$('eleOut');if(o)o.textContent='Elevation: needs a connection'});
-  setTimeout(()=>{const b=$('popSave');if(b)b.onclick=()=>{addWpt(ll.lat,ll.lng,ele);map.closePopup()}},0);
+  setTimeout(()=>{const b=$('popSave');if(b)b.onclick=()=>{addWpt(ll.lat,ll.lng,ele,title&&!/^-?\d/.test(title)?title:null);map.closePopup()}},0);
 }
 map.on('contextmenu',e=>infoAt(e.latlng));
 map.getContainer().addEventListener('touchstart',e=>{if(e.touches.length!==1)return;const t=e.touches[0];pressT=setTimeout(()=>{infoAt(map.containerPointToLatLng(map.mouseEventToContainerPoint(t)))},650)},{passive:true});
@@ -859,10 +887,88 @@ function zoomBtn(dir){if(window.BCN_zoom&&window.BCN_zoom(dir))return;
   if(dir>0)map.zoomIn();else if(dir<0)map.zoomOut();
   else{const ll=fix?fix.ll:null;if(ll)map.setView(ll,14);else map.setZoom(5);follow=!!ll;$('bLocate').classList.toggle('on',follow)}}
 $('zIn').onclick=()=>zoomBtn(1);$('zOut').onclick=()=>zoomBtn(-1);$('zFit').onclick=()=>zoomBtn(0);
+// ---------- search: places, coordinates, waypoints ----------
+function fromUTM(zone,hemiN,E,N){
+  const a=6378137,f=1/298.257223563,k0=0.9996,e2=f*(2-f),ep2=e2/(1-e2),e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+  const x=E-500000,y=hemiN?N:N-1e7,M=y/k0,mu=M/(a*(1-e2/4-3*e2*e2/64-5*e2**3/256));
+  const p1=mu+(3*e1/2-27*e1**3/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1**4/32)*Math.sin(4*mu)+(151*e1**3/96)*Math.sin(6*mu)+(1097*e1**4/512)*Math.sin(8*mu);
+  const N1=a/Math.sqrt(1-e2*Math.sin(p1)**2),T1=Math.tan(p1)**2,C1=ep2*Math.cos(p1)**2,R1=a*(1-e2)/Math.pow(1-e2*Math.sin(p1)**2,1.5),D=x/(N1*k0);
+  const lat=p1-(N1*Math.tan(p1)/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*ep2)*D**4/24+(61+90*T1+298*C1+45*T1*T1-252*ep2-3*C1*C1)*D**6/720);
+  const lon=(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1*C1+8*ep2+24*T1*T1)*D**5/120)/Math.cos(p1);
+  return [lat*180/Math.PI,(zone-1)*6-180+3+lon*180/Math.PI];
+}
+// Returns [lat,lon] or null from any common coordinate format
+function parseCoords(q){
+  const t=q.trim().toUpperCase().replace(/[,;]/g,' ').replace(/\s+/g,' ');
+  // UTM: 13S 445123 4382456  |  13 445123E 4382456N  |  13N 445123 4382456
+  let m=t.match(/^(\d{1,2})\s?([C-X])?\s+(\d{5,7}(?:\.\d+)?)\s?M?E?\s+(\d{6,8}(?:\.\d+)?)\s?M?N?$/);
+  if(m){const z=+m[1],band=m[2]||'N';if(z<1||z>60)return null;const north=band>='N';const r=fromUTM(z,north,+m[3],+m[4]);return isFinite(r[0])&&Math.abs(r[0])<=84.5?r:null}
+  // degrees/minutes/seconds with optional hemisphere letters
+  const part='([NSEW])?\\s?(-?\\d+(?:\\.\\d+)?)(?:[°º:D\\s]\\s?(\\d+(?:\\.\\d+)?))?(?:[\'′:M\\s]\\s?(\\d+(?:\\.\\d+)?))?[\"″S]?\\s?([NSEW])?';
+  const re=new RegExp('^'+part+'\\s+'+part+'$');
+  m=t.replace(/[°º′″'"]\s*/g,c=>c.trim()+' ').replace(/\s+/g,' ').trim().match(re);
+  if(!m)m=t.match(re);
+  if(m){
+    const val=(h1,d,mi,se,h2)=>{let v=Math.abs(+d)+(+mi||0)/60+(+se||0)/3600;const h=h1||h2;if(+d<0||h==='S'||h==='W')v=-v;return{v,h}};
+    let A=val(m[1],m[2],m[3],m[4],m[5]),B=val(m[6],m[7],m[8],m[9],m[10]);
+    if(A.h==='E'||A.h==='W'||B.h==='N'||B.h==='S'){const t2=A;A=B;B=t2}
+    if(Math.abs(A.v)<=90&&Math.abs(B.v)<=180)return[A.v,B.v];
+  }
+  return null;
+}
+const srMarker=L.marker([0,0],{icon:L.divIcon({className:'',html:'<div class="srmark"></div>',iconSize:[22,22],iconAnchor:[11,11]}),keyboard:false});
+let recent=store.get('recent',[]),sTimer=0,sSeq=0,sItems=[];
+function openSearch(){$('searchPane').hidden=false;document.querySelectorAll('.sheet').forEach(x=>x.hidden=true);const i=$('searchIn');i.value='';renderResults(recent.map(r=>Object.assign({k:'recent'},r)));setTimeout(()=>i.focus(),50)}
+function closeSearch(){$('searchPane').hidden=true;$('searchIn').blur()}
+$('searchBtn').onclick=openSearch;$('searchClose').onclick=closeSearch;
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('searchPane').hidden)closeSearch();if((e.key==='/'||(e.key==='k'&&(e.metaKey||e.ctrlKey)))&&$('searchPane').hidden&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){e.preventDefault();openSearch()}});
+const KIND={coord:'GPS',wpt:'WPT',recent:'↺',place:'MAP'};
+function renderResults(items){sItems=items;$('searchHelp').hidden=items.length>0&&$('searchIn').value.length>0;
+  $('searchRes').innerHTML=items.map((r,i)=>`<button class="sr" role="option" data-i="${i}"><i class="k-${r.k}">${KIND[r.k]||'MAP'}</i><span class="m"><b>${esc(r.name)}</b><small>${esc(r.sub||'')}</small></span></button>`).join('')}
+$('searchRes').onclick=e=>{const b=e.target.closest('[data-i]');if(b)pick(sItems[+b.dataset.i])};
+function pick(r){if(!r)return;
+  const go=ll=>{closeSearch();goTo(ll,r.name,r.zoom);
+    recent=[{name:r.name,sub:r.sub,lat:ll[0],lon:ll[1],zoom:r.zoom}].concat(recent.filter(x=>x.name!==r.name)).slice(0,8);store.set('recent',recent)};
+  if(r.lat!=null)return go([r.lat,r.lon]);
+  if(r.magic){fetch('https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=Type,Addr_type&magicKey='+encodeURIComponent(r.magic)+'&SingleLine='+encodeURIComponent(r.name))
+    .then(x=>x.json()).then(j=>{const c=j.candidates&&j.candidates[0];if(!c)throw 0;r.zoom=zoomFor(c.attributes);go([c.location.y,c.location.x])}).catch(()=>toast('Could not find that place. Check your connection.'))}}
+function zoomFor(a){const t=((a&&(a.Addr_type||''))+' '+(a&&a.Type||'')).toLowerCase();
+  return /point|address|street|poi|summit|peak|spring|trail|campground|lake|pond/.test(t)?15:/city|town|locality|neighborhood|postal/.test(t)?12:/county|subregion/.test(t)?9:/region|state/.test(t)?7:/country/.test(t)?5:13}
+function goTo(ll,name,zoom){
+  follow=false;$('bLocate').classList.remove('on');
+  map.setView(ll,zoom||Math.max(map.getZoom(),14));
+  srMarker.setLatLng(ll).addTo(map);
+  setTimeout(()=>infoAt(L.latLng(ll[0],ll[1]),name),350);
+  if(window.BCN_onGoto)window.BCN_onGoto(ll,zoom||14);
+}
+function runSearch(q,submit){
+  const seq=++sSeq,items=[];q=q.trim();
+  if(!q){renderResults(recent.map(r=>Object.assign({k:'recent'},r)));return}
+  const c=parseCoords(q);
+  if(c)items.push({k:'coord',name:fmtLL(c[0],c[1],0),sub:'Go to coordinates · '+toUTM(c[0],c[1]),lat:c[0],lon:c[1],zoom:15});
+  const ql=q.toLowerCase();
+  wpts.filter(w=>w.name.toLowerCase().includes(ql)).slice(0,5).forEach(w=>items.push({k:'wpt',name:w.name,sub:'Saved waypoint · '+fmtLL(w.lat,w.lon,0),lat:w.lat,lon:w.lon,zoom:15}));
+  renderResults(items);
+  if(c&&!submit)return;
+  if(q.length<2)return;
+  const near=map.getCenter();
+  fetch('https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest?f=json&maxSuggestions=7&text='+encodeURIComponent(q)+'&location='+near.lng.toFixed(3)+','+near.lat.toFixed(3))
+    .then(r=>r.json()).then(j=>{if(seq!==sSeq)return;const s=(j.suggestions||[]).map(x=>{const p=x.text.split(', ');return{k:'place',name:p[0],sub:p.slice(1).join(', '),magic:x.magicKey,full:x.text}});
+      s.forEach(x=>x.name=x.full);s.forEach(x=>{const p=x.full.split(', ');x.name=p[0];x.sub=p.slice(1).join(', ')});
+      renderResults(items.concat(s));if(submit&&!items.length&&s.length)pick(s[0])})
+    .catch(()=>{ // fallback: OpenStreetMap Nominatim (on submit only, per its usage policy)
+      if(!submit||seq!==sSeq)return;
+      fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=7&q='+encodeURIComponent(q)).then(r=>r.json()).then(j=>{if(seq!==sSeq)return;
+        const s=j.map(x=>{const p=x.display_name.split(', ');return{k:'place',name:p[0],sub:p.slice(1,4).join(', '),lat:+x.lat,lon:+x.lon,zoom:x.type==='peak'?15:13}});
+        renderResults(items.concat(s));if(!items.length&&!s.length)toast('No places found')}).catch(()=>toast('Place search needs a connection. Coordinates still work offline.',3500))});
+}
+$('searchIn').addEventListener('input',e=>{clearTimeout(sTimer);const v=e.target.value;sTimer=setTimeout(()=>runSearch(v,false),250)});
+$('searchForm').addEventListener('submit',e=>{e.preventDefault();const v=$('searchIn').value;if(sItems.length&&sItems[0].k!=='recent'&&(sItems[0].k==='coord'||sItems.length===1)){pick(sItems[0]);return}if(sItems.length&&sItems[0].k==='place'){pick(sItems[0]);return}runSearch(v,true)});
+
 window.BCN={map,L,BASES,OVERLAYS,HZ,FULL,ovLayers:()=>ovLayers,ovOpacity:()=>ovOpacity,isExport:l=>l instanceof ArcExport,toggleOv,openSheet,getBaseKey:()=>baseKey,getBase:()=>baseLayer,getBaseDef:()=>BASES[baseKey],getFix:()=>fix,units:()=>U[units],esc,card,toast,hav,bearing};
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
 })();
 </script>
-<script src="views.js?v=4"></script>
+<script src="views.js?v=5"></script>
 </body>
 </html>

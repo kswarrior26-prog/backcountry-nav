@@ -34,6 +34,11 @@
     if (v === 'map') { B.map.invalidateSize(); if (globe) { const c = globe.getCenter(); if (globe.getZoom() > 3) B.map.setView([c.lat, c.lng], Math.round(globe.getZoom() + 1)); } }
   }
   document.addEventListener('bcn:layers', () => { if (globe) syncGlobe(); });
+  // search results: follow along in Globe and Polar
+  window.BCN_onGoto = (ll, z) => {
+    if (view === 'globe' && globe) { stopSpin(); globe.flyTo({ center: [ll[1], ll[0]], zoom: Math.min(z, 12), duration: 3000 }); }
+    if (view === 'polar' && pReady) { center = 'map'; pScale = 1; ox = oy = 0; document.querySelectorAll('#polarPane [data-c]').forEach(x => x.classList.toggle('on', x.dataset.c === 'map')); drawPolar(); }
+  };
 
   // ================= GLOBE =================
   let globe = null, spinning = false, spinRaf = 0, meMarker = null;
