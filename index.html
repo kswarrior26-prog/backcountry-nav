@@ -315,6 +315,9 @@ const FAA='https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/
 const usgsAttr='USGS The National Map';
 const BASES={
   usgsTopo:{name:'USGS Topo',d:'Contours, roads, trails, land ownership',l:()=>tl(NM+'USGSTopo/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,attribution:usgsAttr})},
+  sat:{name:'Satellite',d:'Sharpest imagery, down to individual trees and two-tracks',l:()=>tl('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,attribution:'Esri, Maxar, Earthstar Geographics, USDA, USGS'})},
+  satLabels:{name:'Satellite + labels',d:'Sharp imagery with roads, places and boundaries',labels:true,l:()=>tl('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,attribution:'Esri, Maxar, Earthstar Geographics, USDA, USGS'})},
+  nasa:{name:'NASA satellite today',d:'Today\'s VIIRS pass: clouds, smoke, snow cover. Low detail',l:()=>{const d=new Date(Date.now()-864e5).toISOString().slice(0,10);return tl('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/'+d+'/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',{maxNativeZoom:9,attribution:'NASA GIBS / VIIRS ('+d+')'})}},
   usgsImgTopo:{name:'USGS Imagery Topo',d:'Aerial photo with topo labels',l:()=>tl(NM+'USGSImageryTopo/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,attribution:usgsAttr})},
   usgsImg:{name:'USGS Imagery',d:'Aerial photo only',l:()=>tl(NM+'USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:16,attribution:usgsAttr})},
   usgsRelief:{name:'USGS Shaded Relief',d:'Terrain shading, no labels',l:()=>tl(NM+'USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:13,attribution:usgsAttr})},
@@ -325,6 +328,8 @@ const BASES={
   faaIfr:{name:'FAA IFR Low Enroute',d:'Airways, MEAs, navaids',l:()=>tl(FAA+'IFR_AreaLow/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:12,attribution:'FAA Aeronautical Information Services'})}
 };
 const OVERLAYS={
+  labels:{name:'Roads & places',d:'Road, town and boundary labels for imagery',l:()=>tl('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,attribution:'Esri'})},
+  roads:{name:'Road lines',d:'Highways and roads drawn over imagery',l:()=>tl('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:19,attribution:'Esri'})},
   mvum:{name:'4x4 · Forest Service',d:'USFS Motor Vehicle Use Map: roads & trails open to vehicles, by class and season. Zoom in to see.',l:()=>ax('https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_MVUM_02/MapServer',{attribution:'USDA Forest Service MVUM'})},
   blm:{name:'4x4 · BLM routes',d:'BLM roads, primitive roads & trails on public land. Zoom in to see.',l:()=>ax('https://gis.blm.gov/arcgis/rest/services/transportation/BLM_Natl_GTLF_Public_Display/MapServer',{attribution:'Bureau of Land Management GTLF'})},
   geology:{name:'Geologic map',d:'Bedrock units from USGS & state surveys (Macrostrat)',l:()=>tl('https://tiles.macrostrat.org/carto/{z}/{x}/{y}.png',{attribution:'Macrostrat / USGS & state geological surveys'})},
@@ -343,15 +348,16 @@ map.on('moveend',()=>store.set('view',{c:[map.getCenter().lat,map.getCenter().ln
 
 let baseKey=store.get('base','usgsTopo'); if(!BASES[baseKey]) baseKey='usgsTopo';
 let baseLayer=null; const ovLayers={}; let ovOn=store.get('ov',[]); let ovOpacity=store.get('ovOp',0.65);
-function setBase(k){ if(baseLayer) map.removeLayer(baseLayer); baseKey=k; baseLayer=watchTiles(BASES[k].l(),true).addTo(map); baseLayer.bringToBack(); store.set('base',k); renderLayerUI() }
-const FULL=['mvum','blm'];
+function setBase(k){ if(baseLayer) map.removeLayer(baseLayer); baseKey=k; baseLayer=watchTiles(BASES[k].l(),true).addTo(map); baseLayer.bringToBack(); store.set('base',k);
+  if(BASES[k].labels){toggleOv('labels',true);toggleOv('roads',true)} renderLayerUI() }
+const FULL=['mvum','blm','labels','roads'];
 function fourByFour(){const on=!(ovLayers.mvum&&ovLayers.blm);
   if(on){if(!['openTopo','usgsTopo','usgsImgTopo'].includes(baseKey))setBase('openTopo');toggleOv('mvum',true);toggleOv('blm',true);if(map.getZoom()<11)map.setZoom(11);toast('4x4 mode: Forest Service and BLM vehicle routes on',3000)}
   else{toggleOv('mvum',false);toggleOv('blm',false);toast('4x4 routes off')}}
 function toggleOv(k,force){
   const on=force!=null?force:!ovLayers[k];
   if(on && !ovLayers[k]){ ovLayers[k]=OVERLAYS[k].l().setOpacity(k==='radar'?0.75:FULL.includes(k)?1:ovOpacity).addTo(map);
-    if(FULL.includes(k)&&map.getZoom()<8&&force==null)toast('Zoom in closer to see vehicle routes',3000) }
+    if((k==='mvum'||k==='blm')&&map.getZoom()<8&&force==null)toast('Zoom in closer to see vehicle routes',3000) }
   if(!on && ovLayers[k]){ map.removeLayer(ovLayers[k]); delete ovLayers[k] }
   ovOn=Object.keys(ovLayers); store.set('ov',ovOn.filter(x=>x!=='radar')); renderLayerUI();
   $('wxRadar').classList.toggle('on',!!ovLayers.radar);
