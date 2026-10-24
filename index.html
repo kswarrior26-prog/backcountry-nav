@@ -149,7 +149,8 @@ input[type=range]{width:100%;accent-color:var(--blaze)}
 .rotchip{all:unset;cursor:pointer;position:fixed;z-index:1500;left:max(12px,env(safe-area-inset-left,0px));top:calc(env(safe-area-inset-top,0px) + 62px);background:var(--blaze);color:var(--blaze-ink);font:700 13px var(--f-display);letter-spacing:.06em;text-transform:uppercase;padding:9px 14px;border-radius:999px;white-space:nowrap;max-width:calc(100% - 130px);overflow:hidden;text-overflow:ellipsis}
 .hzq{border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
 .hzf{width:18px;height:18px;display:grid;place-items:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
-.views{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px;gap:2px;flex:none}
+.views{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px;gap:2px;flex:0 1 auto;min-width:0;overflow:hidden}
+.views button{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:center}
 .views button{all:unset;cursor:pointer;font:700 13px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:8px 9px;border-radius:4px}
 .views button[aria-selected="true"]{background:var(--blaze);color:var(--blaze-ink)}
 .top{z-index:1100}
@@ -169,7 +170,7 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 .zoombar button:active{background:var(--blaze);color:var(--blaze-ink)}
 .zoombar button:focus-visible{outline:2px solid var(--sky);outline-offset:-2px}
 .zoombar svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
-.searchbtn{all:unset;cursor:pointer;flex:none;width:40px;height:38px;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
+.searchbtn{all:unset;cursor:pointer;flex:none;width:44px;height:40px;position:relative;z-index:1;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink)}
 .searchbtn svg,.sbox svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
 .searchbtn:focus-visible{outline:2px solid var(--sky);outline-offset:2px}
 .searchpane{position:fixed;z-index:2600;left:0;right:0;top:0;max-height:85%;overflow:auto;background:var(--panel-solid);border-bottom:2px solid var(--blaze);box-shadow:0 10px 40px rgba(0,0,0,.5);
@@ -212,13 +213,13 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 
 <div class="top">
   <div class="brand"><i></i><span>Backcountry</span></div>
+  <button class="searchbtn" type="button" id="searchBtn" aria-label="Search places or coordinates"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
   <div class="views" role="tablist" aria-label="Earth view">
     <button role="tab" data-view="map" aria-selected="true">Map</button>
     <button role="tab" data-view="globe" aria-selected="false">Globe</button>
     <button role="tab" data-view="polar" aria-selected="false">Polar</button>
   </div>
   <button class="layerchip" id="layerChip" aria-label="Choose map layers"><b id="baseName">USGS Topo</b> <span id="ovNames"></span></button>
-  <button class="searchbtn" id="searchBtn" aria-label="Search places or coordinates"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
 </div>
 
 <button class="compass" id="compass" aria-label="Compass. Tap to enable or toggle map rotation">
@@ -434,6 +435,9 @@ body.alt .rail,body.alt .compass,body.alt .rotchip{display:none}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+window.addEventListener('error',function(e){try{var t=document.getElementById('toast');if(!t)return;t.textContent='App error: '+(e.message||'unknown')+(e.lineno?' (line '+e.lineno+')':'')+'. Please tell Claude.';t.hidden=false;setTimeout(function(){t.hidden=true},8000)}catch(x){}});
+</script>
 <script>
 (function(){
 "use strict";
@@ -964,7 +968,7 @@ const srMarker=L.marker([0,0],{icon:L.divIcon({className:'',html:'<div class="sr
 let recent=store.get('recent',[]),sTimer=0,sSeq=0,sItems=[];
 function openSearch(){$('searchPane').hidden=false;document.querySelectorAll('.sheet').forEach(x=>x.hidden=true);const i=$('searchIn');i.value='';renderResults(recent.map(r=>Object.assign({k:'recent'},r)));setTimeout(()=>i.focus(),50)}
 function closeSearch(){$('searchPane').hidden=true;$('searchIn').blur()}
-$('searchBtn').onclick=openSearch;$('searchClose').onclick=closeSearch;
+$('searchBtn').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();try{openSearch()}catch(err){toast('Search error: '+err.message,6000)}});$('searchClose').onclick=closeSearch;
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('searchPane').hidden)closeSearch();if((e.key==='/'||(e.key==='k'&&(e.metaKey||e.ctrlKey)))&&$('searchPane').hidden&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName)){e.preventDefault();openSearch()}});
 const KIND={coord:'GPS',wpt:'WPT',recent:'↺',place:'MAP'};
 function renderResults(items){sItems=items;$('searchHelp').hidden=items.length>0&&$('searchIn').value.length>0;
@@ -1029,6 +1033,6 @@ window.BCN={map,L,BASES,OVERLAYS,HZ,FULL,ovLayers:()=>ovLayers,ovOpacity:()=>ovO
 window.addEventListener('pagehide',()=>{store.set('track',track);store.set('trip',tripM)});
 })();
 </script>
-<script src="views.js?v=6"></script>
+<script src="views.js?v=7"></script>
 </body>
 </html>
